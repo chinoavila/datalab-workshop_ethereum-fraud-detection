@@ -53,7 +53,7 @@ Este archivo está diseñado para ser modular y fácil de extender, permitiendo 
 ## Instrucciones de Uso
 1. Clonar este repositorio:
    ```bash
-   git clone <URL del repositorio>
+   git clone https://github.com/chinoavila/datalab-workshop_ethereum-fraud-detection
    ```
 2. Instalar las dependencias:
    ```bash
