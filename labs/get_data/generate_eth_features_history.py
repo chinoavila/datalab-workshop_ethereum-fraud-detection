@@ -2,10 +2,17 @@ import requests
 import time
 import pandas as pd
 from collections import defaultdict
+from dotenv import load_dotenv
+import os
 
 # === CONFIGURACIÓN ===
-ALCHEMY_API_KEY = "sVnct-zVaGIBXICOQGpqaqyTYdF4a0dm"
-ALCHEMY_URL = f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
+# Cargar variables de entorno desde el archivo .env
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
+api_key = os.getenv("ALCHEMY_API_KEY")
+if not api_key:
+    raise ValueError("⚠️ API_KEY no está definida en las variables de entorno")
+api_key = os.getenv("ALCHEMY_API_KEY")
+ALCHEMY_URL = f"https://eth-mainnet.g.alchemy.com/v2/{api_key}"
 
 # === FUNCIONES ===
 
