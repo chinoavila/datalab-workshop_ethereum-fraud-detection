@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+import argparse
 
 # === CONFIGURACIÓN ===
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
@@ -185,45 +186,45 @@ def extract_features(transfers):
 
 # === EJECUCIÓN PRINCIPAL ===
 if __name__ == "__main__":
-    start_total = time.time()
-    print("▶ Descargando transacciones recientes...")
-    recent_tx = get_recent_transfers(minutes=1)
-    print(f"✅ Se obtuvieron {len(recent_tx)} transacciones.")
+    parser = argparse.ArgumentParser(description="Análisis de transacciones recientes de Ethereum")
+    parser.add_argument("--minutes", type=int, default=1, help="Cantidad de minutos hacia atrás para obtener transacciones recientes")
+    parser.add_argument("--max_tx", type=int, default=10, help="Máximo número de transacciones por dirección")
+    args = parser.parse_args()
 
-    addresses = {tx["from"] for tx in recent_tx if tx.get("from")} | {tx["to"] for tx in recent_tx if tx.get("to")}
-    print(f"📌 {len(addresses)} direcciones encontradas para analizar.\n")
+    total_start_time = time.time()
 
+    print(f"▶ Descargando transacciones recientes de los últimos {args.minutes} minutos...")
+    start_time = time.time()
+    recent_tx = get_recent_transfers(minutes=args.minutes, max_tx=args.max_tx)
+    print(f"⏱️ Tiempo de descarga de transacciones recientes: {round(time.time() - start_time, 2)} segundos")
+    print(f"📥 Se obtuvieron {len(recent_tx)} transacciones.")
+
+    addresses = set()
+    for tx in recent_tx:
+        if tx.get("from"):
+            addresses.add(tx["from"])
+        if tx.get("to"):
+            addresses.add(tx["to"])
+    print(f"🧾 {len(addresses)} direcciones encontradas.")
+
+    print("📚 Consultando históricos por dirección...")
+    start_time = time.time()
     all_hist_txs = []
-    print("⏳ Consultando transacciones históricas en paralelo...")
+    for i, addr in enumerate(addresses):
+        print(f"[{i+1}/{len(addresses)}] Consultando histórico para {addr}")
+        hist_txs = get_historical_transfers_for_address(addr, max_tx=args.max_tx)
+        all_hist_txs.extend(hist_txs)
+        time.sleep(0.25)  # Evitar rate limiting
+    print(f"⏱️ Tiempo total de consulta histórica: {round(time.time() - start_time, 2)} segundos")
+    print(f"📦 Total de transacciones históricas recopiladas: {len(all_hist_txs)}")
 
-    def fetch_historical(addr):
-        try:
-            txs = get_historical_transfers_for_address(addr, max_tx=100)
-            print(f"📥 {addr[:6]}... → {len(txs)} txs")
-            return txs
-        except Exception as e:
-            print(f"❌ Error al procesar {addr[:6]}...: {e}")
-            return []
-
-    start_fetch = time.time()
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(fetch_historical, addr): addr for addr in addresses}
-        for i, future in enumerate(as_completed(futures)):
-            result = future.result()
-            all_hist_txs.extend(result)
-            if (i + 1) % 5 == 0 or (i + 1) == len(futures):
-                elapsed = time.time() - start_fetch
-                print(f"🔄 Progreso: {i+1}/{len(futures)} direcciones ({elapsed:.1f}s)")
-
-    print(f"\n✅ Se recopilaron {len(all_hist_txs)} transacciones históricas.")
-    print(f"🕒 Tiempo total de descarga: {time.time() - start_fetch:.2f} s\n")
-
-    print("🧠 Extrayendo features...")
-    start_feat = time.time()
+    print("🔍 Extrayendo features...")
+    start_time = time.time()
     df_features = extract_features(all_hist_txs)
-    print(f"✅ Features extraídas en {time.time() - start_feat:.2f} s")
+    print(f"⏱️ Tiempo de extracción de features: {round(time.time() - start_time, 2)} segundos")
 
-    output_file = "historical_features_eth.csv"
-    df_features.to_csv(output_file, index=False)
-    print(f"📁 Archivo guardado en '{output_file}'")
-    print(f"⏱️ Tiempo total del script: {time.time() - start_total:.2f} s")
+    df_features.to_csv("historical_features_eth.csv", index=False)
+    print("✅ Features guardadas en 'historical_features_eth.csv'")
+
+    total_elapsed = round(time.time() - total_start_time, 2)
+    print(f"🏁 Proceso completo finalizado en {total_elapsed} segundos.")
