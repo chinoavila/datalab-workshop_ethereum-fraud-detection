@@ -1,104 +1,173 @@
-# Obtención de Datos de Ethereum usando Alchemy
+# Extracción de Features de Transacciones Ethereum
 
-Este módulo está diseñado para interactuar con la API de Alchemy y obtener datos relevantes de transacciones de Ethereum. Los datos obtenidos incluyen detalles sobre transacciones recientes, balances de direcciones, y features relacionados con el comportamiento de las direcciones, como el número de transacciones enviadas y recibidas, el valor total enviado/recibido, entre otros.
+Este script permite analizar transacciones de Ethereum, ya sea transacciones recientes o una transacción específica, y extraer features relevantes para la detección de fraude.
 
-El objetivo de este proceso es extraer features que luego serán utilizadas en modelos para hacer predicciones sobre posibles fraudes.
+## Características Principales
+
+- Análisis de transacciones recientes (últimos X minutos)
+- Análisis de una transacción específica por su hash
+- Extracción de features históricos de las direcciones involucradas
+- Generación de archivos CSV con features detallados
 
 ## Requisitos
 
-Este módulo depende de las siguientes librerías:
+- Python 3.6+
+- API Key de Alchemy (configurada en el archivo .env)
+- Dependencias: requests, pandas, python-dotenv
 
-- `requests`: Para realizar solicitudes HTTP a la API de Alchemy.
-- `pandas`: Para manipular los datos de las transacciones y generar el archivo de características.
-- `python-dotenv`: Para cargar variables de entorno desde el archivo `.env`.
+## Uso
 
-Puedes instalar todas las dependencias necesarias ejecutando:
-
-```bash
-pip install -r requirements.txt
-```
-
-## Configuración
-
-Es necesario configurar la clave API de Alchemy para poder hacer las solicitudes. Esto se realiza mediante el archivo `.env`, que debe estar en el directorio raíz del proyecto.
-
-Ejemplo de archivo `.env`:
+### Análisis de Transacciones Recientes
 
 ```bash
-ALCHEMY_API_KEY=tu_clave_api_de_alchemy_aqui
+python generate_eth_features_history.py --minutes <minutos> [--max_tx <número>]
 ```
 
-## Funcionalidad
-
-El script proporciona varias funciones para interactuar con la API de Alchemy y obtener los datos relevantes:
-
-1. Obtención de balances de direcciones  
-   La función `get_eth_balance(address)` obtiene el saldo en Ether de una dirección específica.
-
-2. Detección de direcciones de contratos inteligentes  
-   La función `is_contract_address(address)` permite verificar si una dirección es un contrato inteligente. Esto es útil para filtrar las transacciones que involucran contratos.
-
-3. Obtención de transacciones recientes  
-   La función `get_recent_transfers(minutes=1, max_tx=10)` obtiene las transacciones recientes en la blockchain de Ethereum en el intervalo de tiempo especificado (en minutos). Se limita el número de transacciones recuperadas a `max_tx`.
-
-4. Obtención de transacciones históricas por dirección  
-   La función `get_historical_transfers_for_address(address, max_tx=100)` obtiene las transacciones históricas de una dirección específica. También tiene un límite máximo de transacciones a recuperar.
-
-5. Extracción de features  
-   La función `extract_features(transfers)` toma las transacciones obtenidas y las procesa para extraer un conjunto de características relevantes. Estas características incluyen:
-
-- Promedio de minutos entre transacciones enviadas y recibidas.
-- Número de transacciones enviadas y recibidas.
-- Valor total de Ether enviado y recibido.
-- Número de contratos creados por la dirección.
-- Datos sobre transacciones ERC20, como valores enviados/recibidos y tokens utilizados.
-
-## Ejecución del Script
-
-El script realiza lo siguiente:
-
-- Descarga las transacciones recientes de la blockchain de Ethereum en un intervalo de tiempo configurable.
-- Obtiene el historial de transacciones de todas las direcciones involucradas en esas transacciones, con límite configurable en la cantidad máxima de transacciones por dirección.
-- Extrae las características relevantes de las transacciones históricas.
-- Guarda estas características en un archivo CSV llamado `historical_features_eth.csv`.
-- Muestra mensajes informativos sobre el progreso y los tiempos de ejecución de cada etapa para facilitar el seguimiento y diagnóstico.
-
-### Parámetros de ejecución
-
-Se pueden pasar dos parámetros opcionales a la ejecución para controlar la ventana de tiempo y la cantidad máxima de transacciones por dirección:
-
-- `--minutes`: cantidad de minutos hacia atrás para obtener transacciones recientes (valor por defecto: 1).
-- `--max_tx`: máximo número de transacciones a descargar por dirección (valor por defecto: 10).
-
-### Ejemplo de uso
+Ejemplo:
 
 ```bash
-python3 tu_script.py --minutes 5 --max_tx 50
+python generate_eth_features_history.py --minutes 5 --max_tx 20
 ```
 
-Este comando obtendrá las transacciones de los últimos 5 minutos y descargará hasta 50 transacciones históricas por cada dirección encontrada.
+### Análisis de una Transacción Específica
 
-### Salida esperada (ejemplo)
+```bash
+python generate_eth_features_history.py --tx_hash <hash_de_la_transacción>
+```
 
-Durante la ejecución, verás mensajes similares a estos en la consola:
+Ejemplo:
+
+```bash
+python generate_eth_features_history.py --tx_hash 0x123...
+```
+
+## Parámetros
+
+- `--minutes`: (Obligatorio para análisis reciente) Número de minutos hacia atrás para obtener transacciones
+- `--max_tx`: (Opcional) Máximo número de transacciones históricas a analizar por dirección (default: 10)
+- `--tx_hash`: (Obligatorio para análisis específico) Hash de la transacción a analizar
+
+## Formato de Salida
+
+El script genera un archivo CSV con las siguientes columnas:
+
+### Features Básicos
+
+- `Address`: Dirección del remitente
+- `Avg min between sent tnx`: Promedio de minutos entre transacciones enviadas
+- `Avg min between received tnx`: Promedio de minutos entre transacciones recibidas
+- `Time Diff between first and last (Mins)`: Diferencia de tiempo entre primera y última transacción
+- `Sent tnx`: Número de transacciones enviadas
+- `Received Tnx`: Número de transacciones recibidas
+- `Number of Created Contracts`: Número de contratos creados
+- `Unique Received From Addresses`: Número de direcciones únicas de las que se recibió
+- `Unique Sent To Addresses`: Número de direcciones únicas a las que se envió
+
+### Features de Valores
+
+- `min value received`: Valor mínimo recibido
+- `max value received`: Valor máximo recibido
+- `avg val received`: Valor promedio recibido
+- `min val sent`: Valor mínimo enviado
+- `max val sent`: Valor máximo enviado
+- `avg val sent`: Valor promedio enviado
+- `min value sent to contract`: Valor mínimo enviado a contratos
+- `max val sent to contract`: Valor máximo enviado a contratos
+- `avg value sent to contract`: Valor promedio enviado a contratos
+
+### Totales
+
+- `total transactions`: Total de transacciones (incluyendo creación de contratos)
+- `total Ether sent`: Total de Ether enviado
+- `total ether received`: Total de Ether recibido
+- `total ether sent contracts`: Total de Ether enviado a contratos
+- `total ether balance`: Balance total de Ether
+
+### Features ERC20
+
+- `Total ERC20 tnxs`: Total de transacciones ERC20
+- `ERC20 total Ether received`: Total de Ether recibido en transacciones ERC20
+- `ERC20 total ether sent`: Total de Ether enviado en transacciones ERC20
+- `ERC20 total Ether sent contract`: Total de Ether enviado a contratos en transacciones ERC20
+- `ERC20 uniq sent addr`: Número de direcciones únicas a las que se envió ERC20
+- `ERC20 uniq rec addr`: Número de direcciones únicas de las que se recibió ERC20
+- `ERC20 uniq sent addr.1`: Número de direcciones únicas a las que se envió ERC20 (duplicado para compatibilidad)
+- `ERC20 uniq rec contract addr`: Número de contratos únicos a los que se envió ERC20
+
+### Tiempos ERC20
+
+- `ERC20 avg time between sent tnx`: Promedio de tiempo entre transacciones ERC20 enviadas
+- `ERC20 avg time between rec tnx`: Promedio de tiempo entre transacciones ERC20 recibidas
+- `ERC20 avg time between rec 2 tnx`: Promedio de tiempo entre transacciones ERC20 recibidas (duplicado para compatibilidad)
+- `ERC20 avg time between contract tnx`: Promedio de tiempo entre transacciones ERC20 a contratos
+
+### Valores ERC20
+
+- `ERC20 min val rec`: Valor mínimo recibido en ERC20
+- `ERC20 max val rec`: Valor máximo recibido en ERC20
+- `ERC20 avg val rec`: Valor promedio recibido en ERC20
+- `ERC20 min val sent`: Valor mínimo enviado en ERC20
+- `ERC20 max val sent`: Valor máximo enviado en ERC20
+- `ERC20 avg val sent`: Valor promedio enviado en ERC20
+- `ERC20 min val sent contract`: Valor mínimo enviado a contratos en ERC20
+- `ERC20 max val sent contract`: Valor máximo enviado a contratos en ERC20
+- `ERC20 avg val sent contract`: Valor promedio enviado a contratos en ERC20
+
+### Tokens ERC20
+
+- `ERC20 uniq sent token name`: Número de tokens ERC20 únicos enviados
+- `ERC20 uniq rec token name`: Número de tokens ERC20 únicos recibidos
+- `ERC20 most sent token type`: Token ERC20 más común enviado
+- `ERC20_most_rec_token_type`: Token ERC20 más común recibido
+
+## Nombres de Archivos de Salida
+
+- Para transacciones recientes: `features_recent_<minutos>m_<max_tx>tx_<timestamp>.csv`
+- Para transacción específica: `features_tx_<hash>.csv`
+
+## Notas Importantes
+
+1. El script analiza las transacciones recientes y genera una fila por cada transacción, incluyendo los features históricos del remitente.
+2. Los features históricos se calculan usando todas las transacciones disponibles hasta el momento de la transacción actual.
+3. El script incluye un delay de 0.25 segundos entre consultas para evitar rate limiting.
+4. Se requiere una API key de Alchemy configurada en el archivo .env.
+
+## Ejemplo de Uso
+
+```bash
+# Analizar transacciones de los últimos 5 minutos
+python generate_eth_features_history.py --minutes 5 --max_tx 20
+
+# Analizar una transacción específica
+python generate_eth_features_history.py --tx_hash 0x123...
+```
+
+## Salida de Consola
+
+El script muestra información detallada sobre el proceso:
 
 ```
 ▶ Descargando transacciones recientes de los últimos 5 minutos...
-⏱️ Tiempo de descarga de transacciones recientes: 3.47 segundos
-📥 Se obtuvieron 17 transacciones.
-🧾 24 direcciones encontradas.
+⏱️ Tiempo de descarga de transacciones recientes: 1.23 segundos
+📥 Se obtuvieron 5 transacciones.
+
+📋 Hashes de las transacciones encontradas:
+  • 0x123...
+  • 0x456...
+  ...
+
+🧾 3 direcciones de remitentes encontradas.
 📚 Consultando históricos por dirección...
-[1/24] Consultando histórico para 0x1234...
-[2/24] Consultando histórico para 0xabcd...
-...
-⏱️ Tiempo total de consulta histórica: 350.12 segundos
-📦 Total de transacciones históricas recopiladas: 3500
+[1/3] Consultando histórico para 0x789...
+[2/3] Consultando histórico para 0xabc...
+[3/3] Consultando histórico para 0xdef...
+⏱️ Tiempo total de consulta histórica: 2.45 segundos
+📦 Total de transacciones históricas recopiladas: 45
+
 🔍 Extrayendo features...
-⏱️ Tiempo de extracción de features: 45.23 segundos
-✅ Features guardadas en 'historical_features_eth.csv'
-🏁 Proceso completo finalizado en 398.82 segundos.
+⏱️ Tiempo de extracción de features: 0.5 segundos
+📊 Features extraídos para 5 transacciones recientes
+
+✅ Features guardadas en 'features_recent_5m_20tx_20240315_123456.csv'
+🏁 Proceso completo finalizado en 4.18 segundos.
 ```
-
-### Nota sobre rendimiento
-
-> ⚠️ **Importante:** El tiempo de ejecución puede variar significativamente según el número de direcciones y transacciones consultadas. Por ejemplo, en una ejecución con 17 transacciones recientes y 24 direcciones involucradas, el proceso total puede tardar entre 6 y 7 minutos. Se recomienda ajustar los parámetros `--minutes` y `--max_tx` para equilibrar la cantidad de datos obtenidos y el tiempo de procesamiento, así como respetar los límites de tasa de la API para evitar bloqueos.
