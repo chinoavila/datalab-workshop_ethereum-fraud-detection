@@ -37,7 +37,7 @@ def show_results(y_test, pred_y):
     plt.show()
     print (classification_report(y_test, pred_y))
 
-df = pd.read_csv("../../datasets/transaction_dataset.csv")
+df = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
 
 print(df.shape) # cuantas filas y columnas tiene el dataset
 
