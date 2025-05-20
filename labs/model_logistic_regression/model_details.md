@@ -5,7 +5,7 @@ Este documento proporciona una descripción detallada de la implementación del 
 ## Funcionalidades Principales
 
 ### 1. Carga y Preparación de Datos
-- Lectura del conjunto de datos desde archivo CSV ('transaction_dataset.csv')
+- Lectura del conjunto de datos desde archivo CSV ('transaction_dataset_clean.csv')
 - Preprocesamiento de datos:
   - Codificación one-hot de variables categóricas
   - Manejo de valores nulos mediante eliminación
