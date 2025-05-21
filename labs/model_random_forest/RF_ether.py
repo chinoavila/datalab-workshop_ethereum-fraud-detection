@@ -6,9 +6,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler
+import joblib
 
 # Cargar el dataset
-df_RF = pd.read_csv("transaction_dataset_clean.csv")
+df_RF = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
 
 # Preparación de los datos
 X = df_RF.drop("FLAG", axis=1)  # Variables de entrada
@@ -82,3 +83,8 @@ plt.title("Curva ROC - Random Forest Optimizado")
 plt.legend(loc="lower right")
 plt.grid()
 plt.show()
+
+# Guardar el modelo y el scaler
+joblib.dump(rf_opt, '../../models/random_forest_model.joblib')
+joblib.dump(scaler, '../../models/random_forest_scaler.joblib')
+print("\nModelo y scaler guardados exitosamente en el directorio 'models'")

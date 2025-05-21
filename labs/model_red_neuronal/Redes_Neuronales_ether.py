@@ -5,13 +5,19 @@ import seaborn as sns
 from sklearn import preprocessing, metrics, model_selection
 import time
 from matplotlib import pylab as plt
+import joblib
+import sys
+import os
+
+# Agregar el directorio de funciones al path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'funciones'))
 
 # Importación de funciones personalizadas
 from Funciones import evaluar, evaluarDerivada
 from sklearn.neural_network import MLPClassifier
 
 # Cargar el dataset
-numeric_df3 = pd.read_csv("transaction_dataset_clean.csv")
+numeric_df3 = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
 
 # Separar en variables de entrada y objetivo
 X = numeric_df3.drop("FLAG", axis=1)  # Eliminar la columna FLAG
@@ -119,3 +125,16 @@ print("Informe de métricas:\n", report)
 
 MM = metrics.confusion_matrix(y_test, y_pred)
 print("Confusion matrix:\n", MM)
+
+# Guardar los pesos y bias del modelo
+modelo_guardado = {
+    'W1': W1,
+    'b1': b1,
+    'W2': W2,
+    'b2': b2,
+    'FunH': FunH,
+    'FunO': FunO
+}
+joblib.dump(modelo_guardado, '../../models/red_neuronal_model.joblib')
+joblib.dump(standard_scaler, '../../models/red_neuronal_scaler.joblib')
+print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
