@@ -35,7 +35,7 @@ def show_results(y_test, pred_y, title):
     print(classification_report(y_test, pred_y, target_names=LABELS))
 
 # === Carga y preprocesamiento de datos ===
-df = pd.read_csv("../../datasets/transaction_dataset.csv")
+df = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
 
 print(df.shape)  # filas y columnas
 count_classes = pd.Series(df['FLAG']).value_counts()
@@ -104,8 +104,24 @@ pred_y = model.predict(x_test)
 show_results(y_test, pred_y, "SMOTE-Tomek")
 
 # === 6. Ensamble balanceado ===
-bbc = BalancedBaggingClassifier(base_estimator=XGBClassifier(use_label_encoder=False, eval_metric='logloss'),
+bbc = BalancedBaggingClassifier(estimator=XGBClassifier(use_label_encoder=False, eval_metric='logloss'),
                                 random_state=42, n_estimators=10)
 bbc.fit(x_train, y_train)
 pred_y = bbc.predict(x_test)
 show_results(y_test, pred_y, "Balanced Bagging Ensemble")
+
+# === Exportar el modelo final ===
+# Usamos el modelo con scale_pos_weight ya que mostró buenos resultados
+ratio = Counter(y_train)[0] / Counter(y_train)[1]
+modelo_final = run_xgb_model(x_train, y_train, scale_weight=ratio)
+
+# Normalización de los datos
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(x_train)
+
+# Guardar el modelo y el scaler
+import joblib
+joblib.dump(modelo_final, '../../models/xgboost_model.joblib')
+joblib.dump(scaler, '../../models/xgboost_scaler.joblib')
+print("\nModelo XGBoost y scaler guardados exitosamente en el directorio 'models'")

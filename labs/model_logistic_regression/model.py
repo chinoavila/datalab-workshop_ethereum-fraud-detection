@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
 
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
@@ -109,3 +110,7 @@ bbc = BalancedBaggingClassifier(random_state=42)
 bbc.fit(x_train, y_train)
 pred_y = bbc.predict(x_test)
 show_results(y_test, pred_y)
+
+# Guardar el modelo final
+joblib.dump(bbc, '../../models/logistic_regression_model.joblib')
+print("\nModelo guardado exitosamente en el directorio 'models'")

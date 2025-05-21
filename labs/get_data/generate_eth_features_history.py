@@ -245,6 +245,11 @@ def extract_features(transfers, recent_tx=None):
             "ERC20 uniq rec addr": len(set(data["erc20_received_from"])),
             "ERC20 uniq sent addr.1": len(set(data["erc20_sent_to"])),
             "ERC20 uniq rec contract addr": len(set(data["erc20_sent_to_contracts"])),
+            "ERC20 uniq sent contract addr": len(set(data["erc20_sent_to_contracts"])),
+            "ERC20 uniq sent token name": len(set(data["erc20_sent_tokens"])),
+            "ERC20 uniq rec token name": len(set(data["erc20_received_tokens"])),
+            "ERC20 most sent token type": get_most_common_token(data["erc20_sent_tokens"]),
+            "ERC20_most_rec_token_type": get_most_common_token(data["erc20_received_tokens"]),
             "ERC20 avg time between sent tnx": avg_time_diff(erc20_sent_times),
             "ERC20 avg time between rec tnx": avg_time_diff(erc20_rec_times),
             "ERC20 avg time between rec 2 tnx": avg_time_diff(erc20_rec_times),
@@ -258,10 +263,15 @@ def extract_features(transfers, recent_tx=None):
             "ERC20 min val sent contract": min(data["erc20_sent_values"], default=0),
             "ERC20 max val sent contract": max(data["erc20_sent_values"], default=0),
             "ERC20 avg val sent contract": sum(data["erc20_sent_values"]) / len(data["erc20_sent_values"]) if data["erc20_sent_values"] else 0,
-            "ERC20 uniq sent token name": len(set(data["erc20_sent_tokens"])),
-            "ERC20 uniq rec token name": len(set(data["erc20_received_tokens"])),
-            "ERC20 most sent token type": get_most_common_token(data["erc20_sent_tokens"]),
-            "ERC20_most_rec_token_type": get_most_common_token(data["erc20_received_tokens"])
+            "ERC20 min val rec contract": min(data["erc20_received_values"], default=0),
+            "ERC20 max val rec contract": max(data["erc20_received_values"], default=0),
+            "ERC20 avg val rec contract": sum(data["erc20_received_values"]) / len(data["erc20_received_values"]) if data["erc20_received_values"] else 0,
+            "ERC20 sent tnx": len(data["erc20_sent_values"]),
+            "ERC20 contracts sent tnx": len([v for v in data["erc20_sent_values"] if v > 0]),
+            "ERC20 rec tnx": len(data["erc20_received_values"]),
+            "ERC20 contracts rec tnx": len([v for v in data["erc20_received_values"] if v > 0]),
+            "ERC20 most sent token rec": get_most_common_token(data["erc20_sent_tokens"]),
+            "ERC20 most rec token rec": get_most_common_token(data["erc20_received_tokens"])
         })
 
     return pd.DataFrame(features)

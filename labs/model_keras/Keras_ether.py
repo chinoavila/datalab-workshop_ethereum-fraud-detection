@@ -9,9 +9,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
 from sklearn.metrics import confusion_matrix, classification_report
+import joblib
 
 # Cargar el dataset
-df_keras = pd.read_csv("transaction_dataset_clean.csv")
+df_keras = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
 
 # Separar en variables de entrada y objetivo
 X = df_keras.drop("FLAG", axis=1)  # Eliminar la columna FLAG
@@ -94,3 +95,8 @@ for i in range(MM.shape[0]):
 # Reporte de clasificación en test
 print("\nReporte de clasificación:")
 print(classification_report(y_test, y_pred))
+
+# Guardar el modelo y el scaler
+joblib.dump(model, '../../models/keras_model.joblib')
+joblib.dump(scaler, '../../models/keras_scaler.joblib')
+print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
