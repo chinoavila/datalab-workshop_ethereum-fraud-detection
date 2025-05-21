@@ -1,3 +1,8 @@
 notion/
 .vscode/
 **/venv/
+model_evaluation/resultados/
+model_evaluation/__pycache__/
+labs/get_data/features_recent*
+labs/get_data/__pycache__/
+labs/funciones/__pycache__/
