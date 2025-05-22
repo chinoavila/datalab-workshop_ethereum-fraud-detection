@@ -10,8 +10,9 @@ import os
 import sys
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
-# Agregar el directorio de funciones al path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'labs', 'funciones'))
+# Agregar el directorio de common_functions al path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'common_functions'))
+from eval_functions import evaluar
 
 def cargar_modelo(nombre_modelo):
     """Carga un modelo desde el directorio models"""
@@ -86,7 +87,6 @@ def predecir_modelo(modelo, X, nombre_modelo, scaler=None):
         y_pred_proba = y_pred_proba[:, 1]
     elif nombre_modelo == 'red_neuronal':
         # Para la red neuronal personalizada
-        from Funciones import evaluar
         W1 = modelo['W1']
         b1 = modelo['b1']
         W2 = modelo['W2']

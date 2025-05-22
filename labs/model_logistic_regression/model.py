@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
+import sys
+import os
 
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
@@ -19,6 +21,17 @@ from imblearn.combine import SMOTETomek
 from imblearn.ensemble import BalancedBaggingClassifier
 
 from collections import Counter
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'common_functions'))
+from data_utils import load_and_preprocess_data, normalize_features
+from eval_utils import evaluate_model, plot_confusion_matrix, plot_class_distribution
+from balance_utils import apply_undersampling, apply_oversampling, apply_smote_tomek, get_balanced_ensemble
+
+def create_model(balanced=False):
+    params = { 'C': 1.0, 'penalty': 'l2', 'solver': 'newton-cg' }
+    if balanced:
+        params['class_weight'] = 'balanced'
+    return LogisticRegression(**params)
 
 def run_model(X_train, X_test, y_train, y_test, balanced=False):
     if balanced:
@@ -38,79 +51,78 @@ def show_results(y_test, pred_y):
     plt.show()
     print (classification_report(y_test, pred_y))
 
-df = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
+def main():
+    # Cargar y preprocesar datos
+    X_train, X_test, y_train, y_test = load_and_preprocess_data(
+        "../../datasets/transaction_dataset_clean.csv"
+    )
+    
+    # Normalizar características
+    X_train_norm, X_test_norm, _ = normalize_features(X_train, y_train)
+    
+    # Visualizar distribución inicial
+    plot_class_distribution(y_train)
+    
+    # 1. Modelo base
+    print("\n1. Evaluación del modelo base:")
+    model = create_model()
+    model.fit(X_train_norm, y_train)
+    y_pred = model.predict(X_test_norm)
+    metrics_base = evaluate_model(y_test, y_pred)
+    print(metrics_base['classification_report'])
+    plot_confusion_matrix(metrics_base['confusion_matrix'])
+    
+    # 2. Modelo con balance de clases
+    print("\n2. Evaluación del modelo con balance de clases:")
+    model_balanced = create_model(balanced=True)
+    model_balanced.fit(X_train_norm, y_train)
+    y_pred = model_balanced.predict(X_test_norm)
+    metrics_balanced = evaluate_model(y_test, y_pred)
+    print(metrics_balanced['classification_report'])
+    plot_confusion_matrix(metrics_balanced['confusion_matrix'])
+    
+    # 3. Modelo con under-sampling
+    print("\n3. Evaluación del modelo con under-sampling:")
+    X_train_under, y_train_under = apply_undersampling(X_train_norm, y_train)
+    model_under = create_model()
+    model_under.fit(X_train_under, y_train_under)
+    y_pred = model_under.predict(X_test_norm)
+    metrics_under = evaluate_model(y_test, y_pred)
+    print(metrics_under['classification_report'])
+    plot_confusion_matrix(metrics_under['confusion_matrix'])
+    
+    # 4. Modelo con over-sampling
+    print("\n4. Evaluación del modelo con over-sampling:")
+    X_train_over, y_train_over = apply_oversampling(X_train_norm, y_train)
+    model_over = create_model()
+    model_over.fit(X_train_over, y_train_over)
+    y_pred = model_over.predict(X_test_norm)
+    metrics_over = evaluate_model(y_test, y_pred)
+    print(metrics_over['classification_report'])
+    plot_confusion_matrix(metrics_over['confusion_matrix'])
+    
+    # 5. Modelo con SMOTE-Tomek
+    print("\n5. Evaluación del modelo con SMOTE-Tomek:")
+    X_train_st, y_train_st = apply_smote_tomek(X_train_norm, y_train)
+    model_st = create_model()
+    model_st.fit(X_train_st, y_train_st)
+    y_pred = model_st.predict(X_test_norm)
+    metrics_st = evaluate_model(y_test, y_pred)
+    print(metrics_st['classification_report'])
+    plot_confusion_matrix(metrics_st['confusion_matrix'])
+    
+    # 6. Modelo con ensamble balanceado
+    print("\n6. Evaluación del modelo con ensamble balanceado:")
+    bbc = get_balanced_ensemble()
+    bbc.fit(X_train_norm, y_train)
+    y_pred = bbc.predict(X_test_norm)
+    metrics_bbc = evaluate_model(y_test, y_pred)
+    print(metrics_bbc['classification_report'])
+    plot_confusion_matrix(metrics_bbc['confusion_matrix'])
 
-print(df.shape) # cuantas filas y columnas tiene el dataset
+    # Guardar el modelo final
+    joblib.dump(bbc, '../../models/logistic_regression_model.joblib')
+    print("\nModelo guardado exitosamente en el directorio 'models'")
 
-# analizamos las clases en FLAG
-count_classes = pd.Series(df['FLAG']).value_counts() 
-print(count_classes)
-count_classes.plot(kind = 'bar', rot=0)
-LABELS = ["Sin fraude", "Con fraude"]
-plt.xticks(range(2), LABELS)
-plt.title("Frequency by observation number")
-plt.xlabel("FLAG")
-plt.ylabel("Number of Observations")
-
-# se definen etiquetas y features
-x = pd.get_dummies(df.drop('FLAG', axis=1))
-y = df['FLAG']
-
-# se unen las features y las etiquetas para eliminar las filas con nulos de manera consistente.
-# Así aseguramos que x e y tengan el mismo número de filas después de la eliminación de nulos.
-xy = pd.concat([x, y], axis=1)
-xy = xy.dropna()
-
-# se separan las features y etiquetas después de la limpieza
-x = xy.drop('FLAG', axis=1)
-y = xy['FLAG']
-
-# se divide en dataframe en sets de entrenamiento y test
-x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.7)
-
-# entrenamiento, ejecución y análisis del modelo
-model = run_model(x_train, x_test, y_train, y_test)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y)
-
-# estrategia de penalizacion para compensar
-model = run_model(x_train, x_test, y_train, y_test, True)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y)
-
-# estrategia de subsampling
-nm = NearMiss()
-print ("Distribución pre under-sampling {}".format(Counter(y_train)))
-x_train_nm, y_train_nm = nm.fit_resample(x_train, y_train)
-print ("Distribución post under-sampling {}".format(Counter(y_train)))
-model = run_model(x_train_nm, x_test, y_train_nm, y_test, False)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y)
-
-# estrategia de oversampling
-os = RandomOverSampler()
-print ("Distribución pre over-sampling {}".format(Counter(y_train)))
-x_train_os, y_train_os = os.fit_resample(x_train, y_train)
-print ("Distribución post over-sampling {}".format(Counter(y_train)))
-model = run_model(x_train_os, x_test, y_train_os, y_test)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y)
-
-# estrategia de smote-tomek
-st = SMOTETomek()
-print ("Distribución pre smote-tomek {}".format(Counter(y_train)))
-x_train_st, y_train_st = st.fit_resample(x_train, y_train)
-print ("Distribución post smote-tomek {}".format(Counter(y_train)))
-model = run_model(x_train_st, x_test, y_train_st, y_test)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y)
-
-# estrategia de ensamble de modelos con balanceo
-bbc = BalancedBaggingClassifier(random_state=42)
-bbc.fit(x_train, y_train)
-pred_y = bbc.predict(x_test)
-show_results(y_test, pred_y)
-
-# Guardar el modelo final
-joblib.dump(bbc, '../../models/logistic_regression_model.joblib')
-print("\nModelo guardado exitosamente en el directorio 'models'")
+if __name__ == "__main__":
+    main()
