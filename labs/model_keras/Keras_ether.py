@@ -1,102 +1,153 @@
 # Importación de librerías necesarias
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn import metrics
-from sklearn.metrics import confusion_matrix, classification_report
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 import joblib
+import sys
+import os
 
-# Cargar el dataset
-df_keras = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
+# Agregar el directorio de common_functions al path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'common_functions'))
+from data_utils import load_and_preprocess_data, normalize_features
+from eval_utils import evaluate_model, plot_confusion_matrix, plot_class_distribution
+from balance_utils import apply_undersampling, apply_oversampling, apply_smote_tomek
 
-# Separar en variables de entrada y objetivo
-X = df_keras.drop("FLAG", axis=1)  # Eliminar la columna FLAG
-y = df_keras["FLAG"]
+def create_keras_model(input_dim, class_weight=None):
+    model = Sequential([
+        Dense(64, activation='relu', input_dim=input_dim),
+        Dropout(0.3),
+        Dense(32, activation='relu'),
+        Dropout(0.2),
+        Dense(16, activation='relu'),
+        Dense(1, activation='sigmoid')
+    ])
+    model.compile(
+        optimizer='adam',
+        loss='binary_crossentropy',
+        metrics=['accuracy']
+    )
+    return model
 
-# Dividir en entrenamiento y prueba (70%-30%)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+def main():
+    # Cargar y preprocesar datos
+    X_train, X_test, y_train, y_test = load_and_preprocess_data(
+        "../../datasets/transaction_dataset_clean.csv"
+    )
 
-# Normalización de los datos de entrada
-scaler = StandardScaler()
-X_train_norm = scaler.fit_transform(X_train)
-X_test_norm = scaler.transform(X_test)
+    # Normalizar características
+    X_train_norm, X_test_norm, scaler = normalize_features(X_train, X_test)
 
-# One-hot encoding de la variable objetivo
-y_trainB = to_categorical(y_train)
-y_testB = to_categorical(y_test)
+    # Visualizar distribución inicial
+    plot_class_distribution(y_train)
 
-# Ajuste del rango de salida a [-1, 1] si la función de activación lo requiere
-y_trainB = 2 * y_trainB - 1
-y_testB = 2 * y_testB - 1
+    # Configurar early stopping
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=10,
+        restore_best_weights=True
+    )
 
-# Crear el modelo de red neuronal
-model = Sequential()
-model.add(Dense(20, input_dim=X_train_norm.shape[1], activation="sigmoid"))  # Capa oculta con 20 neuronas
-model.add(Dense(y_trainB.shape[1], activation="tanh"))  # Capa de salida con activación tanh
+    # Calcular class_weight para balanceo
+    n_samples = len(y_train)
+    n_classes = len(np.unique(y_train))
+    class_weight = {
+        0: n_samples / (n_classes * np.sum(y_train == 0)),
+        1: n_samples / (n_classes * np.sum(y_train == 1))
+    }
 
-# Compilar el modelo con optimizador SGD y función de pérdida MSE
-model.compile(optimizer="sgd", loss="mean_squared_error", metrics=["accuracy"])
+    # 1. Modelo base sin balance
+    print("\n1. Evaluación del modelo base:")
+    model = create_keras_model(X_train.shape[1])
+    history = model.fit(
+        X_train_norm, y_train,
+        validation_split=0.2,
+        epochs=100,
+        batch_size=32,
+        callbacks=[early_stopping],
+        verbose=0
+    )
+    y_pred = (model.predict(X_test_norm) > 0.5).astype(int)
+    metrics_base = evaluate_model(y_test, y_pred)
+    print(metrics_base['classification_report'])
+    plot_confusion_matrix(metrics_base['confusion_matrix'])
 
-# Entrenamiento del modelo
-history = model.fit(X_train_norm, y_trainB, epochs=100, verbose=1)
+    # 2. Modelo con balance de clases
+    print("\n2. Evaluación del modelo con balance de clases:")
+    model_balanced = create_keras_model(X_train.shape[1])
+    history_balanced = model_balanced.fit(
+        X_train_norm, y_train,
+        validation_split=0.2,
+        epochs=100,
+        batch_size=32,
+        class_weight=class_weight,
+        callbacks=[early_stopping],
+        verbose=0
+    )
+    y_pred = (model_balanced.predict(X_test_norm) > 0.5).astype(int)
+    metrics_balanced = evaluate_model(y_test, y_pred)
+    print(metrics_balanced['classification_report'])
+    plot_confusion_matrix(metrics_balanced['confusion_matrix'])
 
-# Graficar la evolución del error durante el entrenamiento
-plt.plot(history.history["loss"])
-plt.xlabel("Época")
-plt.ylabel("Pérdida (MSE)")
-plt.title("Evolución del error")
-plt.grid(True)
-plt.show()
+    # 3. Modelo con under-sampling
+    print("\n3. Evaluación del modelo con under-sampling:")
+    X_train_under, y_train_under = apply_undersampling(X_train_norm, y_train)
+    model_under = create_keras_model(X_train.shape[1])
+    history_under = model_under.fit(
+        X_train_under, y_train_under,
+        validation_split=0.2,
+        epochs=100,
+        batch_size=32,
+        callbacks=[early_stopping],
+        verbose=0
+    )
+    y_pred = (model_under.predict(X_test_norm) > 0.5).astype(int)
+    metrics_under = evaluate_model(y_test, y_pred)
+    print(metrics_under['classification_report'])
+    plot_confusion_matrix(metrics_under['confusion_matrix'])
 
-# Predicción de clases en conjunto de entrenamiento
-y_pred_probs = model.predict(X_train_norm)
-y_pred = np.argmax(y_pred_probs, axis=1)
+    # 4. Modelo con over-sampling
+    print("\n4. Evaluación del modelo con over-sampling:")
+    X_train_over, y_train_over = apply_oversampling(X_train_norm, y_train)
+    model_over = create_keras_model(X_train.shape[1])
+    history_over = model_over.fit(
+        X_train_over, y_train_over,
+        validation_split=0.2,
+        epochs=100,
+        batch_size=32,
+        callbacks=[early_stopping],
+        verbose=0
+    )
+    y_pred = (model_over.predict(X_test_norm) > 0.5).astype(int)
+    metrics_over = evaluate_model(y_test, y_pred)
+    print(metrics_over['classification_report'])
+    plot_confusion_matrix(metrics_over['confusion_matrix'])
 
-# Cálculo de la precisión en entrenamiento
-acc = metrics.accuracy_score(y_train, y_pred)
-print(f"Accuracy en entrenamiento: {acc:.3f}")
+    # 5. Modelo con SMOTE-Tomek
+    print("\n5. Evaluación del modelo con SMOTE-Tomek:")
+    X_train_st, y_train_st = apply_smote_tomek(X_train_norm, y_train)
+    model_st = create_keras_model(X_train.shape[1])
+    history_st = model_st.fit(
+        X_train_st, y_train_st,
+        validation_split=0.2,
+        epochs=100,
+        batch_size=32,
+        callbacks=[early_stopping],
+        verbose=0
+    )
+    y_pred = (model_st.predict(X_test_norm) > 0.5).astype(int)
+    metrics_st = evaluate_model(y_test, y_pred)
+    print(metrics_st['classification_report'])
+    plot_confusion_matrix(metrics_st['confusion_matrix'])
 
-# Matriz de confusión
-MM = confusion_matrix(y_train, y_pred)
-print("Matriz de confusión:")
-print(MM)
+    # Seleccionar el mejor modelo (en este caso, usaremos el balanceado)
+    # Luego, guardar modelo y scaler
+    best_model = model_balanced
+    best_model.save('../../models/keras_model.h5')
+    joblib.dump(scaler, '../../models/keras_scaler.joblib')
+    print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
 
-# Detalle de aciertos y errores por clase
-print("\nAciertos y errores por clase:")
-for i in range(MM.shape[0]):
-    aciertos = MM[i, i]
-    errores = sum(MM[i, :]) - aciertos
-    print(f"Clase {i}: Aciertos = {aciertos}, Errores = {errores}")
-
-# Evaluación del modelo en test
-test_loss, test_acc = model.evaluate(X_test_norm, y_testB, verbose=0)
-print(f"Accuracy en test: {test_acc:.3f}")
-
-# Predicción en datos de prueba
-y_pred_probs = model.predict(X_test_norm)
-y_pred = np.argmax(y_pred_probs, axis=1)
-
-# Matriz de confusión y reporte de clasificación
-MM = confusion_matrix(y_test, y_pred)
-print("Matriz de confusión (test):")
-print(MM)
-
-print("\nAciertos y errores por clase (test):")
-for i in range(MM.shape[0]):
-    aciertos = MM[i, i]
-    errores = sum(MM[i, :]) - aciertos
-    print(f"Clase {i}: Aciertos = {aciertos}, Errores = {errores}")
-
-# Reporte de clasificación en test
-print("\nReporte de clasificación:")
-print(classification_report(y_test, y_pred))
-
-# Guardar el modelo y el scaler
-joblib.dump(model, '../../models/keras_model.joblib')
-joblib.dump(scaler, '../../models/keras_scaler.joblib')
-print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
+if __name__ == "__main__":
+    main()

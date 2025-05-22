@@ -1,90 +1,93 @@
 # Importación de librerías necesarias
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
-from sklearn.preprocessing import StandardScaler
 import joblib
+import sys
+import os
 
-# Cargar el dataset
-df_RF = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
+# Agregar el directorio de common_functions al path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'common_functions'))
+from data_utils import load_and_preprocess_data, normalize_features
+from eval_utils import evaluate_model, plot_confusion_matrix, plot_class_distribution
+from balance_utils import apply_undersampling, apply_oversampling, apply_smote_tomek, get_balanced_ensemble
 
-# Preparación de los datos
-X = df_RF.drop("FLAG", axis=1)  # Variables de entrada
-y = df_RF["FLAG"]  # Variable objetivo
+def create_random_forest(balanced=False, n_estimators=100):
+    params = {
+        'n_estimators': n_estimators,
+        'random_state': 42,
+        'n_jobs': -1
+    }
+    if balanced:
+        params['class_weight'] = 'balanced'
+    return RandomForestClassifier(**params)
 
-# División en entrenamiento (70%), validación (15%) y test (15%)
-X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, stratify=y, random_state=42)
-X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42)
+def main():
+    # Cargar y preprocesar datos
+    X_train, X_test, y_train, y_test = load_and_preprocess_data(
+        "../../datasets/transaction_dataset_clean.csv"
+    )
 
-# Normalización de los datos de entrada
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_val = scaler.transform(X_val)
-X_test = scaler.transform(X_test)
+    # Normalizar características
+    X_train_norm, X_test_norm, scaler = normalize_features(X_train, X_test)
 
-# Definimos el modelo base
-rf = RandomForestClassifier(class_weight="balanced", random_state=42, n_jobs=-1)
+    # Visualizar distribución inicial
+    plot_class_distribution(y_train)
 
-# Definimos el espacio de búsqueda de hiperparámetros
-param_grid = {
-    "n_estimators": np.arange(50, 300, 50),  # Cantidad de árboles
-    "max_depth": [None, 5, 10, 20, 30],  # Profundidad máxima
-    "min_samples_split": [2, 5, 10],  # Mínimas muestras para dividir
-    "min_samples_leaf": [1, 2, 4],  # Mínimas muestras en una hoja
-    "max_features": ["sqrt", "log2", None],  # Método para elegir features en cada división
-}
+    # 1. Modelo base
+    print("\n1. Evaluación del modelo base:")
+    model = create_random_forest()
+    model.fit(X_train_norm, y_train)
+    y_pred = model.predict(X_test_norm)
+    metrics_base = evaluate_model(y_test, y_pred)
+    print(metrics_base['classification_report'])
+    plot_confusion_matrix(metrics_base['confusion_matrix'])
 
-# Configuración de búsqueda aleatoria de hiperparámetros
-random_search = RandomizedSearchCV(
-    estimator=rf,
-    param_distributions=param_grid,
-    n_iter=20,  # Número de combinaciones aleatorias a probar
-    cv=5,  # Cross-validation con 5 folds
-    verbose=2,
-    random_state=42,
-    n_jobs=-1,
-)
+    # 2. Modelo con balance de clases
+    print("\n2. Evaluación del modelo con balance de clases:")
+    model_balanced = create_random_forest(balanced=True)
+    model_balanced.fit(X_train_norm, y_train)
+    y_pred = model_balanced.predict(X_test_norm)
+    metrics_balanced = evaluate_model(y_test, y_pred)
+    print(metrics_balanced['classification_report'])
+    plot_confusion_matrix(metrics_balanced['confusion_matrix'])
 
+    # 3. Modelo con under-sampling
+    print("\n3. Evaluación del modelo con under-sampling:")
+    X_train_under, y_train_under = apply_undersampling(X_train_norm, y_train)
+    model_under = create_random_forest()
+    model_under.fit(X_train_under, y_train_under)
+    y_pred = model_under.predict(X_test_norm)
+    metrics_under = evaluate_model(y_test, y_pred)
+    print(metrics_under['classification_report'])
+    plot_confusion_matrix(metrics_under['confusion_matrix'])
 
-random_search.fit(X_val, y_val)
+    # 4. Modelo con over-sampling
+    print("\n4. Evaluación del modelo con over-sampling:")
+    X_train_over, y_train_over = apply_oversampling(X_train_norm, y_train)
+    model_over = create_random_forest()
+    model_over.fit(X_train_over, y_train_over)
+    y_pred = model_over.predict(X_test_norm)
+    metrics_over = evaluate_model(y_test, y_pred)
+    print(metrics_over['classification_report'])
+    plot_confusion_matrix(metrics_over['confusion_matrix'])
 
-# Selección del mejor modelo con hiperparámetros óptimos
-mejores_params = random_search.best_params_
-print("Mejores hiperparámetros encontrados:", mejores_params)
+    # 5. Modelo con SMOTE-Tomek
+    print("\n5. Evaluación del modelo con SMOTE-Tomek:")
+    X_train_st, y_train_st = apply_smote_tomek(X_train_norm, y_train)
+    model_st = create_random_forest()
+    model_st.fit(X_train_st, y_train_st)
+    y_pred = model_st.predict(X_test_norm)
+    metrics_st = evaluate_model(y_test, y_pred)
+    print(metrics_st['classification_report'])
+    plot_confusion_matrix(metrics_st['confusion_matrix'])
 
-rf_opt = RandomForestClassifier(**mejores_params, class_weight="balanced", random_state=42, n_jobs=-1)
-rf_opt.fit(X_train, y_train)
+    # Seleccionar el mejor modelo (en este caso, usaremos el balanceado)
+    # Luego, guardar modelo y scaler
+    best_model = model_balanced
+    joblib.dump(best_model, '../../models/random_forest_model.joblib')
+    joblib.dump(scaler, '../../models/random_forest_scaler.joblib')
+    print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
 
-# Evaluación del modelo en entrenamiento
-y_train_pred = rf_opt.predict(X_train)
-print("Matriz de confusión (Entrenamiento):\n", confusion_matrix(y_train, y_train_pred))
-print("\nReporte de clasificación (Entrenamiento):\n", classification_report(y_train, y_train_pred))
-
-# Evaluación del modelo en test
-y_test_pred = rf_opt.predict(X_test)
-print("\nMatriz de confusión (Test):\n", confusion_matrix(y_test, y_test_pred))
-print("\nReporte de clasificación (Test):\n", classification_report(y_test, y_test_pred))
-
-# Curva ROC y cálculo del AUC
-y_test_proba = rf_opt.predict_proba(X_test)[:, 1]
-fpr, tpr, _ = roc_curve(y_test, y_test_proba)
-roc_auc = auc(fpr, tpr)
-
-# Graficar curva ROC
-plt.figure(figsize=(8, 6))
-plt.plot(fpr, tpr, color="darkorange", lw=2, label=f"ROC curve (AUC = {roc_auc:.2f})")
-plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--", label="Azar (AUC = 0.5)")
-plt.xlabel("Tasa de Falsos Positivos (FPR)")
-plt.ylabel("Tasa de Verdaderos Positivos (TPR)")
-plt.title("Curva ROC - Random Forest Optimizado")
-plt.legend(loc="lower right")
-plt.grid()
-plt.show()
-
-# Guardar el modelo y el scaler
-joblib.dump(rf_opt, '../../models/random_forest_model.joblib')
-joblib.dump(scaler, '../../models/random_forest_scaler.joblib')
-print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
+if __name__ == "__main__":
+    main()

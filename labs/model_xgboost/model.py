@@ -1,127 +1,96 @@
+import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from collections import Counter
-
-from sklearn.metrics import confusion_matrix, classification_report
-from sklearn.model_selection import train_test_split
-
-from imblearn.under_sampling import NearMiss
-from imblearn.over_sampling import RandomOverSampler
-from imblearn.combine import SMOTETomek
-from imblearn.ensemble import BalancedBaggingClassifier
-
-from xgboost import XGBClassifier
-
-# === Función para entrenar el modelo ===
-def run_xgb_model(X_train, y_train, scale_weight=None):
-    if scale_weight:
-        ratio = scale_weight
-    else:
-        ratio = 1  # sin ajuste
-    model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', scale_pos_weight=ratio, random_state=42)
-    model.fit(X_train, y_train)
-    return model
-
-# === Función para mostrar resultados ===
-def show_results(y_test, pred_y, title):
-    conf_matrix = confusion_matrix(y_test, pred_y)
-    plt.figure(figsize=(6, 6))
-    sns.heatmap(conf_matrix, xticklabels=LABELS, yticklabels=LABELS, annot=True, fmt="d", cmap="Blues")
-    plt.title(f"Confusion Matrix - {title}")
-    plt.ylabel('True class')
-    plt.xlabel('Predicted class')
-    plt.show()
-    print(classification_report(y_test, pred_y, target_names=LABELS))
-
-# === Carga y preprocesamiento de datos ===
-df = pd.read_csv("../../datasets/transaction_dataset_clean.csv")
-
-print(df.shape)  # filas y columnas
-count_classes = pd.Series(df['FLAG']).value_counts()
-print(count_classes)
-
-LABELS = ["Sin fraude", "Con fraude"]
-count_classes.plot(kind='bar', rot=0)
-plt.xticks(range(2), LABELS)
-plt.title("Frecuencia por clase")
-plt.xlabel("FLAG")
-plt.ylabel("Observaciones")
-plt.show()
-
-# Preprocesamiento
-# Eliminar columnas irrelevantes o identificadoras
-columns_to_drop = ["Unnamed: 0", "Index"]
-df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
-# Filtrar solo columnas numéricas
-df_numeric = df.select_dtypes(include=["number"])
-# Imputar valores nulos con la media
-df_numeric = df_numeric.fillna(df_numeric.mean(numeric_only=True))
-# Verificamos que FLAG está en el dataset
-assert 'FLAG' in df_numeric.columns, "La columna 'FLAG' no está presente en el dataset numérico."
-# Separar variables predictoras (X) y la variable objetivo (y)
-x = df_numeric.drop("FLAG", axis=1)
-y = df_numeric["FLAG"]
-# División del dataset
-x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.7, random_state=42, stratify=y)
-
-# === 1. Sin balanceo (modelo base) ===
-model = run_xgb_model(x_train, y_train)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y, "Sin Balanceo")
-
-# === 2. Con scale_pos_weight ===
-ratio = Counter(y_train)[0] / Counter(y_train)[1]
-model = run_xgb_model(x_train, y_train, scale_weight=ratio)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y, "scale_pos_weight")
-
-# === 3. Under-sampling (NearMiss) ===
-print("Under-sampling:")
-print("Antes:", Counter(y_train))
-x_train_nm, y_train_nm = NearMiss().fit_resample(x_train, y_train)
-print("Después:", Counter(y_train_nm))
-model = run_xgb_model(x_train_nm, y_train_nm)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y, "Under-sampling")
-
-# === 4. Over-sampling ===
-print("Over-sampling:")
-print("Antes:", Counter(y_train))
-x_train_os, y_train_os = RandomOverSampler().fit_resample(x_train, y_train)
-print("Después:", Counter(y_train_os))
-model = run_xgb_model(x_train_os, y_train_os)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y, "Over-sampling")
-
-# === 5. SMOTE-Tomek ===
-print("SMOTE-Tomek:")
-print("Antes:", Counter(y_train))
-x_train_st, y_train_st = SMOTETomek().fit_resample(x_train, y_train)
-print("Después:", Counter(y_train_st))
-model = run_xgb_model(x_train_st, y_train_st)
-pred_y = model.predict(x_test)
-show_results(y_test, pred_y, "SMOTE-Tomek")
-
-# === 6. Ensamble balanceado ===
-bbc = BalancedBaggingClassifier(estimator=XGBClassifier(use_label_encoder=False, eval_metric='logloss'),
-                                random_state=42, n_estimators=10)
-bbc.fit(x_train, y_train)
-pred_y = bbc.predict(x_test)
-show_results(y_test, pred_y, "Balanced Bagging Ensemble")
-
-# === Exportar el modelo final ===
-# Usamos el modelo con scale_pos_weight ya que mostró buenos resultados
-ratio = Counter(y_train)[0] / Counter(y_train)[1]
-modelo_final = run_xgb_model(x_train, y_train, scale_weight=ratio)
-
-# Normalización de los datos
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(x_train)
-
-# Guardar el modelo y el scaler
+import xgboost as xgb
 import joblib
-joblib.dump(modelo_final, '../../models/xgboost_model.joblib')
-joblib.dump(scaler, '../../models/xgboost_scaler.joblib')
-print("\nModelo XGBoost y scaler guardados exitosamente en el directorio 'models'")
+import sys
+import os
+
+# Agregar el directorio de common_functions al path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'common_functions'))
+from data_utils import load_and_preprocess_data, normalize_features
+from eval_utils import evaluate_model, plot_confusion_matrix, plot_class_distribution
+from balance_utils import apply_undersampling, apply_oversampling, apply_smote_tomek
+
+def create_xgboost(balanced=False):
+    params = {
+        'n_estimators': 100,
+        'learning_rate': 0.1,
+        'max_depth': 5,
+        'random_state': 42,
+        'n_jobs': -1,
+        'use_label_encoder': False,
+        'eval_metric': 'logloss'
+    }
+    if balanced:
+        params['scale_pos_weight'] = 2
+    return xgb.XGBClassifier(**params)
+
+def main():
+    # Cargar y preprocesar datos
+    X_train, X_test, y_train, y_test = load_and_preprocess_data(
+        "../../datasets/transaction_dataset_clean.csv"
+    )
+
+    # Normalizar características
+    X_train_norm, X_test_norm, scaler = normalize_features(X_train, X_test)
+
+    # Visualizar distribución inicial
+    plot_class_distribution(y_train)
+
+    # 1. Modelo base
+    print("\n1. Evaluación del modelo base:")
+    model = create_xgboost()
+    model.fit(X_train_norm, y_train)
+    y_pred = model.predict(X_test_norm)
+    metrics_base = evaluate_model(y_test, y_pred)
+    print(metrics_base['classification_report'])
+    plot_confusion_matrix(metrics_base['confusion_matrix'])
+
+    # 2. Modelo con balance de clases
+    print("\n2. Evaluación del modelo con balance de clases:")
+    model_balanced = create_xgboost(balanced=True)
+    model_balanced.fit(X_train_norm, y_train)
+    y_pred = model_balanced.predict(X_test_norm)
+    metrics_balanced = evaluate_model(y_test, y_pred)
+    print(metrics_balanced['classification_report'])
+    plot_confusion_matrix(metrics_balanced['confusion_matrix'])
+
+    # 3. Modelo con under-sampling
+    print("\n3. Evaluación del modelo con under-sampling:")
+    X_train_under, y_train_under = apply_undersampling(X_train_norm, y_train)
+    model_under = create_xgboost()
+    model_under.fit(X_train_under, y_train_under)
+    y_pred = model_under.predict(X_test_norm)
+    metrics_under = evaluate_model(y_test, y_pred)
+    print(metrics_under['classification_report'])
+    plot_confusion_matrix(metrics_under['confusion_matrix'])
+
+    # 4. Modelo con over-sampling
+    print("\n4. Evaluación del modelo con over-sampling:")
+    X_train_over, y_train_over = apply_oversampling(X_train_norm, y_train)
+    model_over = create_xgboost()
+    model_over.fit(X_train_over, y_train_over)
+    y_pred = model_over.predict(X_test_norm)
+    metrics_over = evaluate_model(y_test, y_pred)
+    print(metrics_over['classification_report'])
+    plot_confusion_matrix(metrics_over['confusion_matrix'])
+
+    # 5. Modelo con SMOTE-Tomek
+    print("\n5. Evaluación del modelo con SMOTE-Tomek:")
+    X_train_st, y_train_st = apply_smote_tomek(X_train_norm, y_train)
+    model_st = create_xgboost()
+    model_st.fit(X_train_st, y_train_st)
+    y_pred = model_st.predict(X_test_norm)
+    metrics_st = evaluate_model(y_test, y_pred)
+    print(metrics_st['classification_report'])
+    plot_confusion_matrix(metrics_st['confusion_matrix'])
+
+    # Seleccionar el mejor modelo (en este caso, usaremos el balanceado)
+    # Luego, guardar modelo y scaler
+    best_model = model_balanced
+    joblib.dump(best_model, '../../models/xgboost_model.joblib')
+    joblib.dump(scaler, '../../models/xgboost_scaler.joblib')
+    print("\nModelo y scaler guardados exitosamente en el directorio 'models'")
+
+if __name__ == "__main__":
+    main()

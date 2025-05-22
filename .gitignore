@@ -1,3 +1,8 @@
 notion/
 .vscode/
 **/venv/
+**/env
+**/.env
+**.pyc
+**/features_*.csv
+__pycache__
