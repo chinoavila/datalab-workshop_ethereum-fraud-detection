@@ -14,8 +14,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common_functions'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts', 'get_data'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts', 'model_evaluation'))
-sys.path.append(os.path.dirname(__file__))  # Agregar el directorio actual al path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))  # Agregar el directorio raíz al path
 
 # Importar funciones del script original
 from evaluate_models import (
@@ -35,39 +33,31 @@ from generate_eth_features_history import (
 
 def cargar_dataset_mas_reciente():
     """Carga el dataset más reciente o genera uno nuevo si no existe"""
-    archivos = glob.glob("../scripts/get_data/features_recent_*_*.csv")
+    dir_actual = os.getcwd()
+    get_data_path = os.path.join(dir_actual, "scripts", "get_data")
+    initial_file = os.path.join(get_data_path, "features_recent_*_*.csv")
+    archivos = glob.glob(initial_file)
     if not archivos:
-        st.warning("No se encontraron datos recientes. Generando nuevo dataset...")
-        resultado = 0
         try:
+            st.warning("No se encontraron datos recientes. Generando nuevo dataset...")
             # Configuración por defecto para generar nuevos datos
             minutes = 5  # últimos 5 minutos
             max_tx = 100  # máximo 100 transacciones
-            comando = f"python ../../scripts/get_data/generate_eth_features_history.py  --minutes {minutes} --max_tx {max_tx}"
-            
-            # Obtener el directorio actual y cambiar al directorio del script
-            dir_actual = os.getcwd()
-            os.chdir(os.path.join(dir_actual, "..", "scripts", "get_data"))
-            
-            # Ejecutar el comando
+            script_path = os.path.join(get_data_path, "generate_eth_features_history.py")
+            comando = f"python {script_path} --minutes {minutes} --max_tx {max_tx}"
+            resultado = 0
             resultado = os.system(comando)
-            
-            # Restaurar el directorio
-            os.chdir(dir_actual)
+            if resultado != 0:
+                st.error("Error al generar nuevos datos")
+                return None 
         except:
-            st.error('No se pudo ejecutar el script "../scripts/get_data/generate_eth_features_history.py"')
-            return None  
-            
-        if resultado != 0:
-            st.error("Error al generar nuevos datos")
+            st.error(f'No se pudo ejecutar el script de generación de nuevos datos')
             return None
-        
     # Buscar el archivo generado
-    archivos = glob.glob("../scripts/get_data/features_recent_*_*.csv")
+    archivos = glob.glob(initial_file)
     if not archivos:
         st.error("No se generó el archivo de features")
         return None
-    
     archivo_mas_reciente = max(archivos, key=os.path.getmtime)
     st.info(f"Dataset cargado: {archivo_mas_reciente}")
     return pd.read_csv(archivo_mas_reciente)
