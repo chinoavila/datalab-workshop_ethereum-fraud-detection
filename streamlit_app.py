@@ -328,14 +328,20 @@ def main():
             st.error(str(e))
             return
         
+        # Inicializar variables en session_state si no existen
+        if 'resultados_evaluacion' not in st.session_state:
+            st.session_state.resultados_evaluacion = None
+            st.session_state.df_detalles = None
+            st.session_state.df_final = None
+        
+        # Lista de modelos a evaluar (movida fuera del bloque if)
+        modelos = ['random_forest', 'keras', 'logistic_regression', 'red_neuronal', 'xgboost']
+        
         if st.button("Evaluar con Todos los Modelos"):
             with st.spinner("Realizando predicciones con todos los modelos..."):
                 # Diccionario para almacenar resultados
                 resultados = {}
-                df_final = df.copy()
-                
-                # Lista de modelos a evaluar
-                modelos = ['random_forest', 'keras', 'logistic_regression', 'red_neuronal', 'xgboost']
+                st.session_state.df_final = df.copy()
                 
                 # Realizar predicciones con cada modelo
                 for nombre_modelo in modelos:
@@ -352,72 +358,92 @@ def main():
                         }
                         
                         # Agregar predicciones al DataFrame final
-                        df_final[f'pred_{nombre_modelo}'] = y_pred
-                        df_final[f'prob_{nombre_modelo}'] = y_prob
+                        st.session_state.df_final[f'pred_{nombre_modelo}'] = y_pred
+                        st.session_state.df_final[f'prob_{nombre_modelo}'] = y_prob
                         
                     except Exception as e:
                         st.error(f"Error con el modelo {nombre_modelo}: {str(e)}")
                         return
                 
                 # Calcular votación (fraude si al menos 3 modelos lo detectan)
-                votos = sum(df_final[f'pred_{modelo}'] for modelo in modelos)
-                df_final['voto_mayoria'] = (votos >= 3).astype(int)
+                votos = sum(st.session_state.df_final[f'pred_{modelo}'] for modelo in modelos)
+                st.session_state.df_final['voto_mayoria'] = (votos >= 3).astype(int)
                 
-                # Mostrar resumen
-                st.subheader("Resumen de Predicciones")
+                # Crear DataFrame con las columnas solicitadas
+                df_detalles = pd.DataFrame()
                 
-                # Crear DataFrame con resumen
-                resumen = pd.DataFrame({
-                    'Modelo': modelos,
-                    'Tiempo (s)': [resultados[m]['tiempo'] for m in modelos],
-                    'Fraudes Detectados': [sum(resultados[m]['predicciones']) for m in modelos],
-                    'Porcentaje de Fraudes': [f"{(sum(resultados[m]['predicciones'])/len(df)*100):.2f}%" for m in modelos]
-                })
+                # Agregar columna de transacción
+                if 'tx_hash' in st.session_state.df_final.columns:
+                    df_detalles['Transacción'] = st.session_state.df_final['tx_hash']
+                else:
+                    df_detalles['Transacción'] = [f'TX_{i+1}' for i in range(len(st.session_state.df_final))]
                 
-                st.dataframe(resumen)
+                # Agregar columnas de predicciones de cada modelo
+                for modelo in modelos:
+                    df_detalles[f'{modelo.replace("_", " ").title()}'] = st.session_state.df_final[f'pred_{modelo}'].map({1: '🔴', 0: '🟢'})
                 
-                # Mostrar resultados de votación
-                st.subheader("Resultados de Votación")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total de Transacciones", len(df))
-                with col2:
-                    st.metric("Fraudes por Votación", sum(df_final['voto_mayoria']))
-                with col3:
-                    st.metric("Porcentaje de Fraudes", f"{(sum(df_final['voto_mayoria'])/len(df)*100):.2f}%")
+                # Agregar columna de predicción final
+                df_detalles['Predicción Final'] = st.session_state.df_final['voto_mayoria'].map({1: 'Fraude', 0: 'No Fraude'})
                 
-                # Mostrar distribución de votos
-                st.subheader("Distribución de Votos")
-                fig, ax = plt.subplots(figsize=(10, 6))
-                ax.hist(votos, bins=6, range=(-0.5, 5.5), alpha=0.7)
-                ax.set_xlabel('Número de Modelos que Detectan Fraude')
-                ax.set_ylabel('Número de Transacciones')
-                ax.set_xticks(range(6))
-                ax.grid(True, alpha=0.3)
-                st.pyplot(fig)
-                
-                # Mostrar detalles de las transacciones
-                st.subheader("Detalles de Transacciones")
-                if st.checkbox("Mostrar Transacciones Detectadas como Fraude"):
-                    df_fraudes = df_final[df_final['voto_mayoria'] == 1]
-                    st.dataframe(df_fraudes)
-                
-                # Guardar resultados
-                if st.button("Guardar Resultados de Votación"):
-                    timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    dir_resultados = os.path.join(project_root, 'resultados', f'votacion_{timestamp}')
-                    os.makedirs(dir_resultados, exist_ok=True)
-                    
-                    # Guardar DataFrame con todas las predicciones
-                    df_final.to_csv(os.path.join(dir_resultados, 'predicciones_votacion.csv'), index=False)
-                    
-                    # Guardar resumen
-                    resumen.to_csv(os.path.join(dir_resultados, 'resumen_votacion.csv'), index=False)
-                    
-                    # Guardar gráfico
-                    fig.savefig(os.path.join(dir_resultados, 'distribucion_votos.png'), dpi=300, bbox_inches='tight')
-                    
-                    st.success(f"Resultados guardados en: {dir_resultados}")
+                # Guardar resultados en session_state
+                st.session_state.resultados_evaluacion = resultados
+                st.session_state.df_detalles = df_detalles
+        
+        # Mostrar resultados si existen
+        if st.session_state.df_detalles is not None:
+            # Mostrar resumen
+            st.subheader("Resumen de Predicciones")
+            
+            # Crear DataFrame con resumen
+            resumen = pd.DataFrame({
+                'Modelo': modelos,
+                'Tiempo (s)': [st.session_state.resultados_evaluacion[m]['tiempo'] for m in modelos],
+                'Fraudes Detectados': [sum(st.session_state.resultados_evaluacion[m]['predicciones']) for m in modelos],
+                'Porcentaje de Fraudes': [f"{(sum(st.session_state.resultados_evaluacion[m]['predicciones'])/len(df)*100):.2f}%" for m in modelos]
+            })
+            
+            st.dataframe(resumen)
+            
+            # Mostrar resultados de votación
+            st.subheader("Resultados de Votación")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total de Transacciones", len(st.session_state.df_detalles))
+            with col2:
+                st.metric("Fraudes Detectados", sum(st.session_state.df_detalles['Predicción Final'] == 'Fraude'))
+            with col3:
+                st.metric("Porcentaje de Fraudes", f"{(sum(st.session_state.df_detalles['Predicción Final'] == 'Fraude')/len(st.session_state.df_detalles)*100):.2f}%")
+            
+            # Mostrar distribución de votos
+            st.subheader("Distribución de Votos")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            votos = sum(st.session_state.df_final[f'pred_{modelo}'] for modelo in modelos)
+            ax.hist(votos, bins=6, range=(-0.5, 5.5), alpha=0.7)
+            ax.set_xlabel('Número de Modelos que Detectan Fraude')
+            ax.set_ylabel('Número de Transacciones')
+            ax.set_xticks(range(6))
+            ax.grid(True, alpha=0.3)
+            st.pyplot(fig)
+            
+            # Mostrar tabla de predicciones
+            st.subheader("Tabla de Predicciones por Transacción")
+            st.dataframe(
+                st.session_state.df_detalles.style.applymap(
+                    lambda x: 'background-color: #ffcdd2' if x == 'Fraude' else 'background-color: #c8e6c9',
+                    subset=['Predicción Final']
+                ),
+                use_container_width=True
+            )
+            
+            # Botón de descarga
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            csv = st.session_state.df_detalles.to_csv(index=False)
+            st.download_button(
+                label="Descargar Resultados",
+                data=csv,
+                file_name=f'predicciones_votacion_{timestamp}.csv',
+                mime='text/csv',
+            )
 
 if __name__ == "__main__":
     main() 
