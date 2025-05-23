@@ -10,17 +10,24 @@ import os
 import sys
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
+# Obtener la ruta absoluta al directorio raíz del proyecto
+project_root = os.path.abspath(os.path.dirname(__file__))
+if sys.argv[0] == "streamlit_app.py":
+    project_root = os.path.abspath(os.path.join(project_root, os.pardir, os.pardir))
+    
 # Agregar el directorio de common_functions al path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'common_functions'))
+sys.path.append(os.path.join(project_root, 'common_functions'))
 from eval_functions import evaluar
 
 def cargar_modelo(nombre_modelo):
     """Carga un modelo desde el directorio models"""
-    return joblib.load(f'../models/{nombre_modelo}')
+    ruta_models = os.path.join(project_root, 'models')
+    return joblib.load(os.path.join(ruta_models, nombre_modelo))
 
 def cargar_scaler(nombre_scaler):
     """Carga un scaler desde el directorio models"""
-    return joblib.load(f'../models/{nombre_scaler}')
+    ruta_models = os.path.join(project_root, 'models')
+    return joblib.load(os.path.join(ruta_models, nombre_scaler))
 
 def asegurar_columnas(df):
     """Asegura que el DataFrame tenga las mismas columnas que se usaron en el entrenamiento"""
@@ -131,9 +138,10 @@ def predecir_modelo(modelo, X, nombre_modelo, scaler=None):
 def main():
     # Buscar y cargar el dataset más reciente
     print("Buscando dataset más reciente...")
-    archivos = glob.glob("../labs/get_data/features_recent_*_*.csv")
+    ruta_features = os.path.join(project_root, 'features_downloads')
+    archivos = glob.glob(os.path.join(ruta_features, 'features_recent_*_*.csv'))
     if not archivos:
-        raise FileNotFoundError("No se encontró ningún archivo que coincida con el patrón 'features_recent_*_*.csv' en el directorio labs/get_data")
+        raise FileNotFoundError("No se encontró ningún archivo que coincida con el patrón 'features_recent_*_*.csv' en el directorio features_downloads")
     
     # Ordenar por fecha de modificación y tomar el más reciente
     archivo_mas_reciente = max(archivos, key=os.path.getmtime)
@@ -193,11 +201,10 @@ def main():
         # Agregar predicciones al DataFrame final
         df_final[f'pred_{nombre_modelo}'] = y_pred
         df_final[f'prob_{nombre_modelo}'] = y_pred_proba
-    
-    # Guardar resultados
+      # Guardar resultados
     nombre_base = os.path.splitext(os.path.basename(archivo_mas_reciente))[0]
-    # Crear la carpeta 'resultados' y el subdirectorio para este dataset
-    dir_resultados = os.path.join('resultados', nombre_base)
+    # Crear la carpeta 'resultados' y el subdirectorio para este dataset en la raíz del proyecto
+    dir_resultados = os.path.join(project_root, 'resultados', nombre_base)
     os.makedirs(dir_resultados, exist_ok=True)
     
     # Guardar DataFrame con predicciones

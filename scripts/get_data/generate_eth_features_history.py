@@ -6,11 +6,19 @@ from dotenv import load_dotenv
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+import sys
 import argparse
 from datetime import datetime
 
 # === CONFIGURACIÓN ===
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
+# Obtener la ruta absoluta al directorio raíz del proyecto
+project_root = os.path.abspath(os.path.dirname(__file__))
+if sys.argv[0] == "streamlit_app.py":
+    project_root = os.path.abspath(os.path.join(project_root, os.pardir, os.pardir))
+
+# Cargar el archivo de variables de entorno
+load_dotenv(dotenv_path=os.path.join(project_root, ".env"))
+# Leer API KEY DE DATA ALCHEMY
 api_key = os.getenv("ALCHEMY_API_KEY")
 if not api_key:
     raise ValueError("⚠️ API_KEY no está definida en las variables de entorno")
@@ -346,14 +354,22 @@ if __name__ == "__main__":
     df_features = extract_features(all_hist_txs, recent_tx)
     print(f"⏱️ Tiempo de extracción de features: {round(time.time() - start_time, 2)} segundos")
     print(f"📊 Features extraídos para {len(df_features)} transacciones recientes")
-
+    
     # Generar nombre de archivo descriptivo
     if args.tx_hash:
         output_file = f"features_tx_{args.tx_hash[:10]}.csv"
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = f"features_recent_{args.minutes}m_{args.max_tx}tx_{timestamp}.csv"
+
+    # Construir la ruta completa al archivo de salida
+    if "get_data" in project_root:
+        project_root = os.path.join(project_root, os.pardir, os.pardir)
+    output_file = os.path.join(project_root, "features_downloads", output_file)
     
+    # Asegurarse de que el directorio existe
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
     df_features.to_csv(output_file, index=False)
     print(f"✅ Features guardadas en '{output_file}'")
 

@@ -8,15 +8,17 @@ import time
 import glob
 import os
 import sys
+import subprocess
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
-# Agregar el directorio de funciones al path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common_functions'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts', 'get_data'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts', 'model_evaluation'))
+# Agregar directorios de funciones al path
+project_root = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(os.path.join(project_root, 'common_functions'))
+sys.path.append(os.path.join(project_root, 'scripts', 'get_data'))
+sys.path.append(os.path.join(project_root, 'scripts', 'model_evaluation'))
 
 # Importar funciones del script original
-from evaluate_models import (
+from scripts.model_evaluation.evaluate_models import (
     cargar_modelo,
     cargar_scaler,
     asegurar_columnas,
@@ -24,7 +26,7 @@ from evaluate_models import (
 )
 
 # Importar funciones para descarga de datos
-from generate_eth_features_history import (
+from scripts.get_data.generate_eth_features_history import (
     get_recent_transfers as get_recent_transactions,
     get_transaction_by_hash as get_transaction_data,
     extract_features as generate_features,
@@ -33,25 +35,40 @@ from generate_eth_features_history import (
 
 def cargar_dataset_mas_reciente():
     """Carga el dataset más reciente o genera uno nuevo si no existe"""
-    dir_actual = os.getcwd()
-    get_data_path = os.path.join(dir_actual, "scripts", "get_data")
-    initial_file = os.path.join(get_data_path, "features_recent_*_*.csv")
+    features_dir = os.path.join(project_root, "features_downloads")
+    initial_file = os.path.join(features_dir, "features_recent_*_*.csv")
     archivos = glob.glob(initial_file)
     if not archivos:
         try:
             st.warning("No se encontraron datos recientes. Generando nuevo dataset...")
             # Configuración por defecto para generar nuevos datos
             minutes = 5  # últimos 5 minutos
-            max_tx = 100  # máximo 100 transacciones
-            script_path = os.path.join(get_data_path, "generate_eth_features_history.py")
-            comando = f"python {script_path} --minutes {minutes} --max_tx {max_tx}"
-            resultado = 0
-            resultado = os.system(comando)
-            if resultado != 0:
+            max_tx = 100  # máximo 100 transacciones            
+            get_data_path = os.path.join(project_root, "scripts", "get_data")
+            comando = ["python", "generate_eth_features_history.py", 
+                                                "--minutes", str(minutes), 
+                                                "--max_tx", str(max_tx)]
+            os.chdir(get_data_path) # nos movemos al directorio get_data para ejecutar el comando
+            process = subprocess.Popen(
+                comando,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8" # <- Esto fuerza la decodificación como UTF-8
+            )
+            output_placeholder = st.empty()
+            for line in process.stdout:
+                output_placeholder.info(line.strip()) # Solo muestra la última línea
+            process.wait()
+            os.chdir(project_root) # volvemos a la raiz del proyecto
+
+            if process.returncode == 0:
+                st.success("Script ejecutado correctamente.")
+            else:
                 st.error("Error al generar nuevos datos")
                 return None 
-        except:
-            st.error(f'No se pudo ejecutar el script de generación de nuevos datos')
+        except Exception as e:
+            st.error(f'No se pudo ejecutar el script de generación de nuevos datos: {e}')
             return None
     # Buscar el archivo generado
     archivos = glob.glob(initial_file)
@@ -113,11 +130,11 @@ def descargar_datos_recientes(minutes, max_tx):
             # Generar features
             st.text("Extrayendo features...")
             features = generate_features(all_hist_txs, recent_tx)
-            
-            # Guardar resultados
+              # Guardar resultados
             timestamp = time.strftime("%Y_%m_%d_%H_%M")
             filename = f"features_recent_{minutes}m_{max_tx}tx_{timestamp}.csv"
-            features.to_csv(os.path.join("../scripts/get_data", filename), index=False)
+            file_path = os.path.join(project_root, "features_downloads", filename)
+            features.to_csv(file_path, index=False)
             
             st.success(f"Datos guardados en: {filename}")
             return features
@@ -138,11 +155,11 @@ def descargar_por_hash(tx_hash):
             
             # Generar features
             features = generate_features([tx_data])
-            
-            # Guardar resultados
+              # Guardar resultados
             timestamp = time.strftime("%Y_%m_%d_%H_%M")
             filename = f"features_tx_{tx_hash[:8]}_{timestamp}.csv"
-            features.to_csv(os.path.join("../scripts/get_data", filename), index=False)
+            file_path = os.path.join(project_root, "features_downloads", filename)
+            features.to_csv(file_path, index=False)
             
             st.success(f"Datos guardados en: {filename}")
             return features
@@ -218,20 +235,23 @@ def main():
                 st.write(f"Rango de probabilidades: [{y_prob.min():.3f}, {y_prob.max():.3f}]")
                 st.write(f"Media de probabilidades: {y_prob.mean():.3f}")
                 st.write(f"Desviación estándar de probabilidades: {y_prob.std():.3f}")
+
+            if st.button("Guardar Resultados"):
+                dir_resultados = os.path.join(project_root, 'resultados', f'evaluacion_{modelo_seleccionado}')
+
+                output_placeholder.info(dir_resultados)
+
+                os.makedirs(dir_resultados, exist_ok=True)
                 
-                if st.button("Guardar Resultados"):
-                    dir_resultados = os.path.join('resultados', f'evaluacion_{modelo_seleccionado}')
-                    os.makedirs(dir_resultados, exist_ok=True)
-                    
-                    df_resultados = pd.DataFrame({
-                        'prediccion': y_pred,
-                        'probabilidad': y_prob
-                    })
-                    df_resultados.to_csv(os.path.join(dir_resultados, 'predicciones.csv'), index=False)
-                    
-                    fig.savefig(os.path.join(dir_resultados, 'distribucion_probabilidades.png'), dpi=300, bbox_inches='tight')
-                    
-                    st.success(f"Resultados guardados en: {dir_resultados}")
+                df_resultados = pd.DataFrame({
+                    'prediccion': y_pred,
+                    'probabilidad': y_prob
+                })
+                df_resultados.to_csv(os.path.join(dir_resultados, 'predicciones.csv'), index=False)
+                
+                fig.savefig(os.path.join(dir_resultados, 'distribucion_probabilidades.png'), dpi=300, bbox_inches='tight')
+                
+                st.success(f"Resultados guardados en: {dir_resultados}")
     
     with tab2:
         st.subheader("Descarga de Datos")
