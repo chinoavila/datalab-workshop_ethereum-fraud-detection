@@ -247,9 +247,22 @@ def main():
             y_pred = df_final[f'pred_{nombre_modelo}']
             y_prob = df_final[f'prob_{nombre_modelo}']
             
-            # Normalizar probabilidades al rango [0,1] si es necesario
-            if nombre_modelo == 'red_neuronal':
-                y_prob = (y_prob + 1) / 2  # Convertir de [-1,1] a [0,1]
+            # Determinar el rango de visualización según el modelo
+            if nombre_modelo == 'keras':
+                # Keras usa tanh, rango [-1, 1]
+                y_prob_plot = y_prob
+                xlim_min, xlim_max = -1.05, 1.05
+                xlabel = 'Valor de Salida (tanh)'
+            elif nombre_modelo == 'red_neuronal':
+                # Red neuronal personalizada usa tanh, rango [-1, 1]
+                y_prob_plot = y_prob
+                xlim_min, xlim_max = -1.05, 1.05
+                xlabel = 'Valor de Salida (tanh)'
+            else:
+                # Otros modelos usan probabilidades [0, 1]
+                y_prob_plot = y_prob
+                xlim_min, xlim_max = -0.05, 1.05
+                xlabel = 'Probabilidad de Fraude'
             
             # Escribir información de diagnóstico
             f.write(f"\nDiagnóstico para {nombre_modelo}:\n")
@@ -258,25 +271,32 @@ def main():
             f.write(f"Casos de no fraude: {sum(y_pred == 0)}\n")
             f.write(f"Casos de fraude: {sum(y_pred == 1)}\n")
             f.write(f"Porcentaje de fraudes: {(sum(y_pred == 1)/len(y_pred)*100):.2f}%\n")
-            f.write(f"Rango de probabilidades: [{y_prob.min():.3f}, {y_prob.max():.3f}]\n")
-            f.write(f"Media de probabilidades: {y_prob.mean():.3f}\n")
-            f.write(f"Desviación estándar de probabilidades: {y_prob.std():.3f}\n")
+            f.write(f"Rango de probabilidades: [{y_prob_plot.min():.3f}, {y_prob_plot.max():.3f}]\n")
+            f.write(f"Media de probabilidades: {y_prob_plot.mean():.3f}\n")
+            f.write(f"Desviación estándar de probabilidades: {y_prob_plot.std():.3f}\n")
             
             # Crear histograma de probabilidades
-            plt.hist(y_prob[y_pred == 0], bins=40, alpha=0.5, label='No Fraude', color='green')
-            plt.hist(y_prob[y_pred == 1], bins=40, alpha=0.5, label='Fraude', color='red')
+            plt.hist(y_prob_plot[y_pred == 0], bins=40, alpha=0.5, label='No Fraude', color='green')
+            plt.hist(y_prob_plot[y_pred == 1], bins=40, alpha=0.5, label='Fraude', color='red')
             
-            plt.title(f'Distribución de Probabilidades\n{nombre_modelo.replace("_", " ").title()}')
-            plt.xlabel('Probabilidad de Fraude')
+            plt.title(f'Distribución de Salidas\n{nombre_modelo.replace("_", " ").title()}')
+            plt.xlabel(xlabel)
             plt.ylabel('Frecuencia')
             plt.legend()
             plt.grid(True, alpha=0.9)
             
             # Ajustar límites del eje y para mejor visualización
-            plt.ylim(0, max(plt.ylim()[1], 1))  # Asegurar que el eje y comience en 0
+            plt.ylim(0, max(plt.ylim()[1], 1))
             
-            # Ajustar límites del eje x para mejor visualización
-            plt.xlim(-0.05, 1.05)  # Dar un poco de espacio en los extremos
+            # Ajustar límites del eje x según el modelo
+            plt.xlim(xlim_min, xlim_max)
+            
+            # Agregar línea vertical en el umbral de decisión
+            if nombre_modelo in ['keras', 'red_neuronal']:
+                plt.axvline(x=0, color='black', linestyle='--', alpha=0.5, label='Umbral (0)')
+            else:
+                plt.axvline(x=0.5, color='black', linestyle='--', alpha=0.5, label='Umbral (0.5)')
+            plt.legend()
         
         # Escribir resumen general
         f.write("\n\nResumen General:\n")

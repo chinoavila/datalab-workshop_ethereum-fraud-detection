@@ -42,8 +42,8 @@ def cargar_dataset_mas_reciente():
         try:
             st.warning("No se encontraron datos recientes. Generando nuevo dataset...")
             # Configuración por defecto para generar nuevos datos
-            minutes = 5  # últimos 5 minutos
-            max_tx = 100  # máximo 100 transacciones            
+            minutes = 1  # último minuto
+            max_tx = 5  # máximo 10 transacciones            
             get_data_path = os.path.join(project_root, "scripts", "get_data")
             comando = [sys.executable, "generate_eth_features_history.py", 
                                                 "--minutes", str(minutes), 
@@ -172,13 +172,16 @@ def main():
     st.title("Evaluación de Modelos de Detección de Fraude")
     
     # Pestañas para diferentes funcionalidades
-    tab1, tab2 = st.tabs(["Evaluación de Modelos", "Descarga de Datos"])
+    tab1, tab2, tab3 = st.tabs(["Evaluación de Modelos", "Descarga de Datos", "Evaluación Conjunta"])
     
     with tab1:
-        # Código existente para evaluación de modelos
+        # Código existente para evaluación de modelos individuales
         df = cargar_dataset_mas_reciente()
         if df is None:
             return
+        
+        # Guardar tx_hash antes de procesar el DataFrame
+        tx_hashes = df['tx_hash'].copy() if 'tx_hash' in df.columns else None
         
         try:
             df = asegurar_columnas(df)
@@ -216,25 +219,57 @@ def main():
                 st.subheader("Distribución de Probabilidades")
                 fig, ax = plt.subplots(figsize=(10, 6))
                 
-                if modelo_seleccionado == 'red_neuronal':
-                    y_prob = (y_prob + 1) / 2
+                # Determinar el rango de visualización según el modelo
+                if modelo_seleccionado in ['keras', 'red_neuronal']:
+                    # Modelos que usan tanh, rango [-1, 1]
+                    y_prob_plot = y_prob
+                    xlim_min, xlim_max = -1.05, 1.05
+                    xlabel = 'Valor de Salida (tanh)'
+                    umbral = 0
+                    # Ajustar número de bins según el rango de valores
+                    rango = y_prob_plot.max() - y_prob_plot.min()
+                    n_bins = min(30, max(15, int(len(y_prob_plot) / 8)))  # Reducir número de bins para barras más anchas
+                    alpha = 0.6  # Mayor transparencia para mejor visualización de superposición
+                else:
+                    # Otros modelos usan probabilidades [0, 1]
+                    y_prob_plot = y_prob
+                    xlim_min, xlim_max = -0.05, 1.05
+                    xlabel = 'Probabilidad de Fraude'
+                    umbral = 0.5
+                    n_bins = 40
+                    alpha = 0.5
                 
-                ax.hist(y_prob[y_pred == 0], bins=40, alpha=0.5, label='No Fraude', color='green')
-                ax.hist(y_prob[y_pred == 1], bins=40, alpha=0.5, label='Fraude', color='red')
+                # Crear histograma con bins ajustados y mayor ancho de barras
+                ax.hist(y_prob_plot[y_pred == 0], bins=n_bins, alpha=alpha, label='No Fraude', color='green', 
+                       width=(xlim_max-xlim_min)/n_bins*0.6)  # Reducir ancho de barras a 60% del espacio
+                ax.hist(y_prob_plot[y_pred == 1], bins=n_bins, alpha=alpha, label='Fraude', color='red',
+                       width=(xlim_max-xlim_min)/n_bins*0.6)  # Reducir ancho de barras a 60% del espacio
                 
-                ax.set_title(f'Distribución de Probabilidades - {modelo_seleccionado.replace("_", " ").title()}')
-                ax.set_xlabel('Probabilidad de Fraude')
+                ax.set_title(f'Distribución de Salidas - {modelo_seleccionado.replace("_", " ").title()}')
+                ax.set_xlabel(xlabel)
                 ax.set_ylabel('Frecuencia')
                 ax.legend()
                 ax.grid(True, alpha=0.3)
-                ax.set_xlim(-0.05, 1.05)
+                ax.set_xlim(xlim_min, xlim_max)
+                
+                # Agregar línea vertical en el umbral de decisión
+                ax.axvline(x=umbral, color='black', linestyle='--', alpha=0.5, label=f'Umbral ({umbral})')
+                ax.legend()
                 
                 st.pyplot(fig)
                 
                 st.subheader("Información Detallada")
-                st.write(f"Rango de probabilidades: [{y_prob.min():.3f}, {y_prob.max():.3f}]")
-                st.write(f"Media de probabilidades: {y_prob.mean():.3f}")
-                st.write(f"Desviación estándar de probabilidades: {y_prob.std():.3f}")
+                st.write(f"Rango de valores: [{y_prob_plot.min():.3f}, {y_prob_plot.max():.3f}]")
+                st.write(f"Media: {y_prob_plot.mean():.3f}")
+                st.write(f"Desviación estándar: {y_prob_plot.std():.3f}")
+                
+                # Agregar información adicional para diagnóstico
+                if modelo_seleccionado in ['keras', 'red_neuronal']:
+                    st.write("Distribución de valores:")
+                    st.write(f"- Valores < 0: {sum(y_prob_plot < 0)} ({sum(y_prob_plot < 0)/len(y_prob_plot)*100:.1f}%)")
+                    st.write(f"- Valores = 0: {sum(y_prob_plot == 0)} ({sum(y_prob_plot == 0)/len(y_prob_plot)*100:.1f}%)")
+                    st.write(f"- Valores > 0: {sum(y_prob_plot > 0)} ({sum(y_prob_plot > 0)/len(y_prob_plot)*100:.1f}%)")
+                    st.write(f"Número de bins en el histograma: {n_bins}")
 
             if st.button("Guardar Resultados"):
                 dir_resultados = os.path.join(project_root, 'resultados', f'evaluacion_{modelo_seleccionado}')
@@ -281,6 +316,148 @@ def main():
                         st.dataframe(df)
                 else:
                     st.warning("Por favor, ingrese un hash de transacción válido")
+
+    with tab3:
+        st.subheader("Evaluación Conjunta de Modelos")
+        
+        # Cargar dataset
+        df = cargar_dataset_mas_reciente()
+        if df is None:
+            return
+        
+        # Guardar tx_hash antes de procesar el DataFrame
+        tx_hashes = df['tx_hash'].copy() if 'tx_hash' in df.columns else None
+        
+        try:
+            df = asegurar_columnas(df)
+        except ValueError as e:
+            st.error(str(e))
+            return
+        
+        # Inicializar variables en session_state si no existen
+        if 'resultados_evaluacion' not in st.session_state:
+            st.session_state.resultados_evaluacion = None
+            st.session_state.df_detalles = None
+            st.session_state.df_final = None
+        
+        # Lista de modelos a evaluar (movida fuera del bloque if)
+        modelos = ['random_forest', 'keras', 'logistic_regression', 'red_neuronal', 'xgboost']
+        
+        if st.button("Evaluar con Todos los Modelos"):
+            with st.spinner("Realizando predicciones con todos los modelos..."):
+                # Diccionario para almacenar resultados
+                resultados = {}
+                st.session_state.df_final = df.copy()
+                
+                # Realizar predicciones con cada modelo
+                for nombre_modelo in modelos:
+                    try:
+                        modelo = cargar_modelo(f'{nombre_modelo}_model.joblib')
+                        scaler = cargar_scaler(f'{nombre_modelo}_scaler.joblib') if nombre_modelo != 'logistic_regression' else None
+                        
+                        y_pred, y_prob, tiempo = predecir_modelo(modelo, df, nombre_modelo, scaler)
+                        
+                        resultados[nombre_modelo] = {
+                            'predicciones': y_pred,
+                            'probabilidades': y_prob,
+                            'tiempo': tiempo
+                        }
+                        
+                        # Agregar predicciones al DataFrame final
+                        st.session_state.df_final[f'pred_{nombre_modelo}'] = y_pred
+                        st.session_state.df_final[f'prob_{nombre_modelo}'] = y_prob
+                        
+                    except Exception as e:
+                        st.error(f"Error con el modelo {nombre_modelo}: {str(e)}")
+                        return
+                
+                # Calcular votación (fraude si al menos 3 modelos lo detectan)
+                votos = sum(st.session_state.df_final[f'pred_{modelo}'] for modelo in modelos)
+                st.session_state.df_final['voto_mayoria'] = (votos >= 3).astype(int)
+                
+                # Crear DataFrame con las columnas solicitadas
+                df_detalles = pd.DataFrame()
+                
+                # Agregar columna de transacción
+                if tx_hashes is not None:
+                    # Mostrar solo los primeros 8 caracteres del hash
+                    df_detalles['Transacción'] = tx_hashes.str[:8] + "..."
+                else:
+                    df_detalles['Transacción'] = [f'TX_{i+1}' for i in range(len(st.session_state.df_final))]
+                
+                # Agregar columnas de predicciones de cada modelo
+                for modelo in modelos:
+                    df_detalles[f'{modelo.replace("_", " ").title()}'] = st.session_state.df_final[f'pred_{modelo}'].map({1: '🔴', 0: '🟢'})
+                
+                # Agregar columna de predicción final
+                df_detalles['Predicción Final'] = st.session_state.df_final['voto_mayoria'].map({1: 'Fraude', 0: 'No Fraude'})
+                
+                # Guardar resultados en session_state
+                st.session_state.resultados_evaluacion = resultados
+                st.session_state.df_detalles = df_detalles
+        
+        # Mostrar resultados si existen
+        if st.session_state.df_detalles is not None:
+            # Mostrar resumen
+            st.subheader("Resumen de Predicciones")
+            
+            # Crear DataFrame con resumen
+            resumen = pd.DataFrame({
+                'Modelo': modelos,
+                'Tiempo (s)': [st.session_state.resultados_evaluacion[m]['tiempo'] for m in modelos],
+                'Fraudes Detectados': [sum(st.session_state.resultados_evaluacion[m]['predicciones']) for m in modelos],
+                'Porcentaje de Fraudes': [f"{(sum(st.session_state.resultados_evaluacion[m]['predicciones'])/len(df)*100):.2f}%" for m in modelos]
+            })
+            
+            st.dataframe(resumen)
+            
+            # Mostrar resultados de votación
+            st.subheader("Resultados de Votación")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total de Transacciones", len(st.session_state.df_detalles))
+            with col2:
+                st.metric("Fraudes Detectados", sum(st.session_state.df_detalles['Predicción Final'] == 'Fraude'))
+            with col3:
+                st.metric("Porcentaje de Fraudes", f"{(sum(st.session_state.df_detalles['Predicción Final'] == 'Fraude')/len(st.session_state.df_detalles)*100):.2f}%")
+            
+            # Mostrar distribución de votos
+            st.subheader("Distribución de Votos")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            votos = sum(st.session_state.df_final[f'pred_{modelo}'] for modelo in modelos)
+            ax.hist(votos, bins=6, range=(-0.5, 5.5), alpha=0.7)
+            ax.set_xlabel('Número de Modelos que Detectan Fraude')
+            ax.set_ylabel('Número de Transacciones')
+            ax.set_xticks(range(6))
+            ax.grid(True, alpha=0.3)
+            st.pyplot(fig)
+            
+            # Mostrar tabla de predicciones
+            st.subheader("Tabla de Predicciones por Transacción")
+            st.dataframe(
+                st.session_state.df_detalles.style.applymap(
+                    lambda x: 'background-color: #ffcdd2' if x == 'Fraude' else 'background-color: #c8e6c9',
+                    subset=['Predicción Final']
+                ),
+                use_container_width=True,  # Hace que la tabla use todo el ancho disponible
+                column_config={
+                    "Transacción": st.column_config.TextColumn(
+                        "Transacción",
+                        width="small",
+                        help="Primeros 8 caracteres del hash de la transacción"
+                    )
+                }
+            )
+            
+            # Botón de descarga
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            csv = st.session_state.df_detalles.to_csv(index=False)
+            st.download_button(
+                label="Descargar Resultados",
+                data=csv,
+                file_name=f'predicciones_votacion_{timestamp}.csv',
+                mime='text/csv',
+            )
 
 if __name__ == "__main__":
     main() 
