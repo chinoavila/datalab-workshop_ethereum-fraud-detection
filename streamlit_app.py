@@ -45,7 +45,7 @@ def cargar_dataset_mas_reciente():
             minutes = 5  # últimos 5 minutos
             max_tx = 100  # máximo 100 transacciones            
             get_data_path = os.path.join(project_root, "scripts", "get_data")
-            comando = ["python", "generate_eth_features_history.py", 
+            comando = [sys.executable, "generate_eth_features_history.py", 
                                                 "--minutes", str(minutes), 
                                                 "--max_tx", str(max_tx)]
             os.chdir(get_data_path) # nos movemos al directorio get_data para ejecutar el comando
