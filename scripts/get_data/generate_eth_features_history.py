@@ -222,6 +222,7 @@ def extract_features(transfers, recent_tx=None):
         erc20_contract_times = [ts for ts in data["erc20_contract_timestamps"] if ts]
 
         features.append({
+            "tx_hash": tx.get("hash", "unknown"),
             "Address": from_addr,
             "Avg min between sent tnx": avg_time_diff(sent_times),
             "Avg min between received tnx": avg_time_diff(rec_times),

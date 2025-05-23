@@ -180,6 +180,9 @@ def main():
         if df is None:
             return
         
+        # Guardar tx_hash antes de procesar el DataFrame
+        tx_hashes = df['tx_hash'].copy() if 'tx_hash' in df.columns else None
+        
         try:
             df = asegurar_columnas(df)
         except ValueError as e:
@@ -322,6 +325,9 @@ def main():
         if df is None:
             return
         
+        # Guardar tx_hash antes de procesar el DataFrame
+        tx_hashes = df['tx_hash'].copy() if 'tx_hash' in df.columns else None
+        
         try:
             df = asegurar_columnas(df)
         except ValueError as e:
@@ -373,8 +379,9 @@ def main():
                 df_detalles = pd.DataFrame()
                 
                 # Agregar columna de transacción
-                if 'tx_hash' in st.session_state.df_final.columns:
-                    df_detalles['Transacción'] = st.session_state.df_final['tx_hash']
+                if tx_hashes is not None:
+                    # Mostrar solo los primeros 8 caracteres del hash
+                    df_detalles['Transacción'] = tx_hashes.str[:8] + "..."
                 else:
                     df_detalles['Transacción'] = [f'TX_{i+1}' for i in range(len(st.session_state.df_final))]
                 
@@ -432,7 +439,14 @@ def main():
                     lambda x: 'background-color: #ffcdd2' if x == 'Fraude' else 'background-color: #c8e6c9',
                     subset=['Predicción Final']
                 ),
-                use_container_width=True
+                use_container_width=True,  # Hace que la tabla use todo el ancho disponible
+                column_config={
+                    "Transacción": st.column_config.TextColumn(
+                        "Transacción",
+                        width="small",
+                        help="Primeros 8 caracteres del hash de la transacción"
+                    )
+                }
             )
             
             # Botón de descarga
