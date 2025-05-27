@@ -176,7 +176,7 @@ def main():
     st.title("Evaluación de Modelos de Detección de Fraude")
     
     # Pestañas para diferentes funcionalidades
-    tab1, tab2, tab3 = st.tabs(["Evaluación de Modelos", "Descarga de Datos", "Evaluación Conjunta"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Evaluación de Modelos", "Descarga de Datos", "Evaluación Conjunta", "Biblioteca de Datos"])
     
     with tab1:
         # Código existente para evaluación de modelos individuales
@@ -194,10 +194,17 @@ def main():
             return
         
         st.subheader("Selección de Modelo")
-        modelo_seleccionado = st.selectbox(
-            "Seleccione el modelo a evaluar:",
-            ['random_forest', 'keras', 'logistic_regression', 'red_neuronal', 'xgboost']
+        modelo_seleccionado = st.selectbox(            "Seleccione el modelo a evaluar:",
+            ['random_forest', 'logistic_regression', 'red_neuronal', 'xgboost'],
+            key='modelo_seleccionado'
         )
+        
+        # Limpiar resultados si se cambia de modelo
+        if 'ultimo_modelo_seleccionado' not in st.session_state:
+            st.session_state.ultimo_modelo_seleccionado = modelo_seleccionado
+        elif st.session_state.ultimo_modelo_seleccionado != modelo_seleccionado:
+            st.session_state.ultimo_modelo = None
+            st.session_state.ultimo_modelo_seleccionado = modelo_seleccionado
         
         try:
             modelo = cargar_modelo(f'{modelo_seleccionado}_model.joblib')
@@ -412,7 +419,7 @@ def main():
             st.session_state.df_final = None
         
         # Lista de modelos disponibles
-        modelos = ['random_forest', 'keras', 'logistic_regression', 'red_neuronal', 'xgboost']
+        modelos = ['random_forest', 'logistic_regression', 'red_neuronal', 'xgboost']
         
         # Opciones de selección de modelos
         modo_evaluacion = st.radio(
@@ -615,6 +622,213 @@ def main():
             # Eliminar archivo temporal
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+    with tab4:
+        st.header("Biblioteca de Datos")
+        subtab1, subtab2 = st.tabs(["Descargas recientes", "Resultados de Evaluación"])
+        
+        with subtab1:
+            st.subheader("Descargas recientes")
+            features_dir = os.path.join(project_root, "features_downloads")
+            archivos_features = glob.glob(os.path.join(features_dir, "features_*.csv"))
+            
+            if archivos_features:
+                # Crear una lista de archivos con sus fechas de modificación
+                archivos_info = []
+                for archivo in archivos_features:
+                    nombre = os.path.basename(archivo)
+                    fecha_mod = os.path.getmtime(archivo)
+                    fecha_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(fecha_mod))
+                    tamaño = os.path.getsize(archivo) / 1024  # tamaño en KB
+                    archivos_info.append({
+                        'seleccionado': False,  # Columna para checkboxes
+                        'Nombre': nombre,
+                        'Fecha de modificación': fecha_str,
+                        'Tamaño (KB)': f"{tamaño:.2f}"
+                    })
+                
+                # Crear DataFrame y agregar a session_state si no existe
+                if 'df_archivos' not in st.session_state:
+                    st.session_state.df_archivos = pd.DataFrame(archivos_info)
+                    st.session_state.df_archivos = st.session_state.df_archivos.sort_values('Fecha de modificación', ascending=False)
+                
+                # Crear checkboxes para cada fila
+                edited_df = st.data_editor(
+                    st.session_state.df_archivos,
+                    column_config={
+                        "seleccionado": st.column_config.CheckboxColumn(
+                            "Seleccionar",
+                            help="Seleccionar para descargar",
+                            default=False,
+                        ),
+                        "Nombre": st.column_config.TextColumn(
+                            "Nombre del archivo",
+                            help="Nombre del archivo de características",
+                        ),
+                        "Fecha de modificación": st.column_config.TextColumn(
+                            "Fecha de modificación",
+                            help="Fecha y hora de la última modificación",
+                        ),
+                        "Tamaño (KB)": st.column_config.TextColumn(
+                            "Tamaño",
+                            help="Tamaño del archivo en kilobytes",
+                        ),
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+                
+                # Actualizar el DataFrame en session_state
+                st.session_state.df_archivos = edited_df
+                
+                # Obtener archivos seleccionados
+                archivos_seleccionados = edited_df[edited_df['seleccionado']]['Nombre'].tolist()
+                
+                if archivos_seleccionados:
+                    if len(archivos_seleccionados) == 1:
+                        # Si solo hay un archivo seleccionado, descarga simple
+                        archivo_path = os.path.join(features_dir, archivos_seleccionados[0])
+                        with open(archivo_path, 'rb') as f:
+                            st.download_button(
+                                label="Descargar archivo",
+                                data=f,
+                                file_name=archivos_seleccionados[0],
+                                mime='text/csv'
+                            )
+                    else:
+                        # Si hay múltiples archivos seleccionados, crear un zip
+                        import io
+                        import zipfile
+                        
+                        # Crear un buffer en memoria para el archivo ZIP
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            for nombre_archivo in archivos_seleccionados:
+                                archivo_path = os.path.join(features_dir, nombre_archivo)
+                                zip_file.write(archivo_path, nombre_archivo)
+                        
+                        # Ofrecer el ZIP para descarga
+                        st.download_button(
+                            label=f"Descargar {len(archivos_seleccionados)} archivos seleccionados",
+                            data=zip_buffer.getvalue(),
+                            file_name="features_seleccionados.zip",
+                            mime="application/zip"
+                        )
+            else:
+                st.info("No hay archivos de características descargados")
+        
+        with subtab2:
+            st.subheader("Resultados de Evaluación")
+            resultados_dir = os.path.join(project_root, "resultados")
+              # Mostrar resultados de evaluación para cada modelo
+            modelos = ['logistic_regression', 'random_forest', 'red_neuronal', 'xgboost']
+            modelo_seleccionado = st.selectbox("Seleccionar modelo:", modelos)
+            
+            carpeta_evaluacion = os.path.join(resultados_dir, f"evaluacion_{modelo_seleccionado}")
+            if os.path.exists(carpeta_evaluacion):
+                # Buscar tanto archivos CSV como PNG
+                archivos_evaluacion_csv = glob.glob(os.path.join(carpeta_evaluacion, "*.csv"))
+                archivos_evaluacion_png = glob.glob(os.path.join(carpeta_evaluacion, "*.png"))
+                archivos_evaluacion = archivos_evaluacion_csv + archivos_evaluacion_png
+                
+                if archivos_evaluacion:
+                    # Crear una lista de archivos con sus fechas de modificación
+                    archivos_info = []
+                    for archivo in archivos_evaluacion:
+                        nombre = os.path.basename(archivo)
+                        fecha_mod = os.path.getmtime(archivo)
+                        fecha_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(fecha_mod))
+                        tamaño = os.path.getsize(archivo) / 1024  # tamaño en KB
+                        tipo = 'CSV' if nombre.endswith('.csv') else 'PNG'
+                        archivos_info.append({
+                            'seleccionado': False,  # Columna para checkboxes
+                            'Nombre': nombre,
+                            'Tipo': tipo,
+                            'Fecha de evaluación': fecha_str,
+                            'Tamaño (KB)': f"{tamaño:.2f}"
+                        })
+                    
+                    # Crear DataFrame y agregar a session_state si no existe o si cambió el modelo
+                    if ('df_evaluaciones' not in st.session_state or 
+                        'modelo_actual' not in st.session_state or 
+                        st.session_state.modelo_actual != modelo_seleccionado):
+                        st.session_state.df_evaluaciones = pd.DataFrame(archivos_info)
+                        st.session_state.df_evaluaciones = st.session_state.df_evaluaciones.sort_values(['Tipo', 'Fecha de evaluación'], ascending=[True, False])
+                        st.session_state.modelo_actual = modelo_seleccionado
+                    
+                    # Crear checkboxes para cada fila
+                    edited_df = st.data_editor(
+                        st.session_state.df_evaluaciones,
+                        column_config={
+                            "seleccionado": st.column_config.CheckboxColumn(
+                                "Seleccionar",
+                                help="Seleccionar para descargar",
+                                default=False,
+                            ),
+                            "Nombre": st.column_config.TextColumn(
+                                "Nombre del archivo",
+                                help="Nombre del archivo de evaluación",
+                            ),
+                            "Tipo": st.column_config.TextColumn(
+                                "Tipo",
+                                help="Tipo de archivo (CSV o PNG)",
+                            ),
+                            "Fecha de evaluación": st.column_config.TextColumn(
+                                "Fecha de evaluación",
+                                help="Fecha y hora de la evaluación",
+                            ),
+                            "Tamaño (KB)": st.column_config.TextColumn(
+                                "Tamaño",
+                                help="Tamaño del archivo en kilobytes",
+                            ),
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                    
+                    # Actualizar el DataFrame en session_state
+                    st.session_state.df_evaluaciones = edited_df
+                    
+                    # Obtener archivos seleccionados
+                    archivos_seleccionados = edited_df[edited_df['seleccionado']]['Nombre'].tolist()
+                    
+                    if archivos_seleccionados:
+                        if len(archivos_seleccionados) == 1:
+                            # Si solo hay un archivo seleccionado, descarga simple
+                            archivo_path = os.path.join(carpeta_evaluacion, archivos_seleccionados[0])
+                            with open(archivo_path, 'rb') as f:
+                                mime_type = 'text/csv' if archivo_path.endswith('.csv') else 'image/png'
+                                st.download_button(
+                                    label="Descargar archivo seleccionado",
+                                    data=f,
+                                    file_name=archivos_seleccionados[0],
+                                    mime=mime_type
+                                )
+                        else:
+                            # Si hay múltiples archivos seleccionados, crear un zip
+                            import io
+                            import zipfile
+                            
+                            # Crear un buffer en memoria para el archivo ZIP
+                            zip_buffer = io.BytesIO()
+                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                for nombre_archivo in archivos_seleccionados:
+                                    archivo_path = os.path.join(carpeta_evaluacion, nombre_archivo)
+                                    zip_file.write(archivo_path, nombre_archivo)
+                            
+
+                            # Ofrecer el ZIP para descarga
+                            st.download_button(
+                                label=f"Descargar {len(archivos_seleccionados)} evaluaciones seleccionadas",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"evaluaciones_{modelo_seleccionado}.zip",
+                                mime="application/zip"
+                            )
+                else:
+                    st.info(f"No hay archivos de evaluación para el modelo {modelo_seleccionado}")
+            else:
+                st.info(f"No hay carpeta de evaluación para el modelo {modelo_seleccionado}")
+
 
 if __name__ == "__main__":
     main()
