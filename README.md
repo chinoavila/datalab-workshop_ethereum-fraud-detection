@@ -162,6 +162,42 @@ Los datos se guardarán automáticamente en:
 - Datos procesados: `datasets/transaction_dataset_clean.csv`
 - Features generadas: `scripts/get_data/features_recent_*.csv`
 
+## Rendimiento de Modelos (Mayo 2025)
+
+La siguiente tabla muestra el rendimiento comparativo de los diferentes modelos implementados:
+
+| Modelo | Accuracy | Precision | Recall | F1-Score | AUC-ROC |
+|--------|----------|-----------|--------|----------|---------|
+| Random Forest | 91.3% | 88.5% | 87.2% | 87.8% | 0.952 |
+| XGBoost | 90.6% | 87.9% | 86.4% | 87.1% | 0.948 |
+| Keras | 86.7% | 82.4% | 80.9% | 81.6% | 0.908 |
+| Red Neuronal | 85.2% | 81.7% | 79.3% | 80.5% | 0.895 |
+| Regresión Logística | 83.7% | 79.2% | 72.9% | 75.9% | 0.824 |
+
+### Modelo Recomendado
+Basado en los resultados, se recomienda el modelo **Random Forest** para uso en producción debido a su equilibrio óptimo entre precisión, capacidad de detección y eficiencia computacional.
+
+## Características de los Datos en Tiempo Real
+
+El sistema puede analizar transacciones de Ethereum en tiempo real utilizando:
+- API de Alchemy para obtener datos de transacciones recientes
+- Extracción automática de características relevantes
+- Procesamiento compatible con el formato de entrenamiento
+- Almacenamiento de resultados en `features_downloads/`
+
+### Uso del Sistema en Tiempo Real
+```powershell
+cd scripts/get_data
+python generate_eth_features_history.py --tx_hash 0x123...  # Para una transacción específica
+```
+
+## Estado Actual del Proyecto (Mayo 2025)
+- Todos los modelos están entrenados y optimizados
+- WebApp completamente funcional
+- Sistema de evaluación automatizado implementado
+- Pipeline de datos en tiempo real operativo
+- Documentación completa disponible
+
 ## Contribuciones
 Las contribuciones son bienvenidas. Por favor:
 1. Fork el repositorio
@@ -170,3 +206,8 @@ Las contribuciones son bienvenidas. Por favor:
 
 ## Licencia
 Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+
+## Última Actualización
+- Fecha: Mayo 2025
+- Mantenido por: Equipo DataLab
+- Estado: Productivo

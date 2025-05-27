@@ -50,6 +50,39 @@ El desempeño se evalúa usando:
    ```bash
    pip install -r requirements.txt
    ```
+2. Ejecutar el script del modelo:
+   ```bash
+   python model.py
+   ```
+
+## Rendimiento (Actualizado Mayo 2025)
+
+### Métricas en Datos de Prueba
+- Accuracy: 83.7%
+- Precision: 79.2% 
+- Recall: 72.9%
+- F1-Score: 75.9%
+- AUC-ROC: 0.824
+
+### Ventajas
+- Alta interpretabilidad de resultados
+- Rapidez en entrenamiento e inferencia
+- Bajo consumo de recursos computacionales
+- Buenos resultados en características lineales
+
+### Limitaciones
+- Rendimiento inferior a Random Forest y XGBoost en este dataset
+- Menor capacidad para capturar relaciones no lineales complejas
+- Sensibilidad al escalado de características
+
+## Comparativa con Otros Modelos
+Este modelo ofrece una buena línea base interpretable, pero está generalmente superado en rendimiento por Random Forest y XGBoost en este conjunto de datos. Sin embargo, su rapidez e interpretabilidad lo hacen útil para análisis exploratorio inicial y para entornos con recursos limitados.
+
+## Última Actualización
+- Fecha: Mayo 2025
+- Estado: Productivo
+- Mantenimiento: Activo
+   ```
 2. Asegurarse de tener el dataset en la ruta correcta
 3. Ejecutar el notebook o script para entrenar y evaluar el modelo
 

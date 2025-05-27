@@ -4,5 +4,6 @@ notion/
 **/env
 **/.env
 **.pyc
-**/features_*.csv
+*.csv
+*.png
 __pycache__

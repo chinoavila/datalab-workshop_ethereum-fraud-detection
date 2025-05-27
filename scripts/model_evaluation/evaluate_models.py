@@ -22,7 +22,8 @@ from eval_functions import evaluar
 def cargar_modelo(nombre_modelo):
     """Carga un modelo desde el directorio models"""
     ruta_models = os.path.join(project_root, 'models')
-    return joblib.load(os.path.join(ruta_models, nombre_modelo))
+    model = joblib.load(os.path.join(ruta_models, nombre_modelo)) if nombre_modelo != 'keras' else load_model(nombre_modelo)
+    return model
 
 def cargar_scaler(nombre_scaler):
     """Carga un scaler desde el directorio models"""
