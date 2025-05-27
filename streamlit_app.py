@@ -397,6 +397,8 @@ def main():
 
     with tab3:
         st.subheader("Evaluación Conjunta de Modelos")
+
+        umbral_votos = 0
         
         # Cargar dataset
         df = cargar_dataset_mas_reciente()
