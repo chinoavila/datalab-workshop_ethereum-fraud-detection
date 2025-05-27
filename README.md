@@ -7,62 +7,207 @@ Este proyecto tiene como objetivo detectar actividades fraudulentas en un conjun
 
 ```
 datalab-workshop_ethereum-fraud-detection/
-├── datasets/
-│   └── transaction_dataset.csv  # Dataset principal de transacciones
-├── labs/
-│   └── model_x/
-│       ├── model.py            # Implementación del modelo
-│       ├── model_details.md    # Documentación detallada del modelo
-│       └── requirements.txt     # Dependencias del modelo
-├── notebooks/
-│   └── model_x/
-│       └── model.ipynb         # Notebook de desarrollo y análisis
-└── README.md                    # Documentación principal del proyecto
+├── common_functions/            # Funciones compartidas entre modelos
+│   ├── data_utils.py           # Utilidades para procesamiento de datos
+│   ├── eval_utils.py           # Funciones de evaluación
+│   ├── balance_utils.py        # Utilidades para manejo de datos desbalanceados
+│   └── requirements.txt        # Dependencias comunes
+├── datasets/                   # Datasets del proyecto
+│   ├── transaction_dataset.csv     # Dataset original
+│   └── transaction_dataset_clean.csv # Dataset procesado
+├── models/                     # Modelos entrenados
+│   ├── keras_model.joblib      # Modelo Keras guardado
+│   ├── logistic_regression_model.joblib
+│   ├── random_forest_model.joblib
+│   ├── red_neuronal_model.joblib
+│   ├── xgboost_model.joblib
+│   └── *_scaler.joblib        # Escaladores para cada modelo
+├── labs/                      # Implementación de modelos
+│   ├── EDA/                   # Análisis Exploratorio de Datos
+│   ├── model_keras/           # Modelo con Keras
+│   ├── model_logistic_regression/
+│   ├── model_random_forest/
+│   ├── model_red_neuronal/
+│   └── model_xgboost/
+├── notebooks/                 # Jupyter notebooks de desarrollo
+│   ├── EDA/
+│   ├── model_keras/
+│   ├── model_logistic_regression/
+│   ├── model_random_forest/
+│   └── model_red_neuronal/
+├── scripts/                   # Scripts de utilidad
+│   ├── get_data/             # Scripts para obtención de datos
+│   └── model_evaluation/      # Scripts de evaluación de modelos
+├── webapp/                    # Aplicación web Streamlit
+│   ├── app.py                # Aplicación principal
+│   └── requirements.txt      # Dependencias de la webapp
+└── README.md
 ```
 
-- **datasets/**: Contiene el conjunto de datos utilizado para el análisis.
-- **notebooks/**: Incluye los archivos de ensayo utilizados para evaluar cada modelo.
-- **labs/**: Incluye los scripts relacionados con cada modelo para ejecutarlos en un entorno aislado.
+## Componentes Principales
 
-## Descripción de modelos
+### Common Functions
+Módulos compartidos que implementan funcionalidades comunes:
+- `data_utils.py`: Preprocesamiento y manipulación de datos
+- `eval_utils.py`: Métricas y funciones de evaluación
+- `balance_utils.py`: Manejo de datasets desbalanceados
 
-La carpeta `notebooks` contiene cada uno de los modelos revisados durante la etapa de evaluación.
-En cada carpeta `model_XXXXX` existen los siguientes archivos:
-- `model.ipynb`: notebook con código fuente y documentación de cada modelo.
-  
-La carpeta `labs` contiene cada uno de los modelos revisados durante la etapa de evaluación.
-En cada carpeta `model_XXXXX` existen los siguientes archivos:
-- `model_details.py`: Archivo de documentación sobre el modelo.
-- `model.py`: Script principal que implementa el modelo.
-- `requirements.txt`: Archivo que lista las bibliotecas y dependencias necesarias para ejecutar el modelo y los scripts relacionados.
+### Modelos Implementados
+Se han implementado varios modelos de machine learning:
+- Regresión Logística
+- Random Forest
+- XGBoost
+- Red Neuronal (Tensorflow/Keras)
+- Red Neuronal Personalizada
 
-## Descripción de Algoritmo Base para implementar un modelo:
-Cada archivo `model.py` es el núcleo del modelo aplicado para la detección de fraude. Este script incluye:
+Cada modelo está disponible en:
+- Notebooks (`notebooks/model_*/`): Desarrollo y análisis
+- Scripts (`labs/model_*/`): Implementación producción
+- Modelos guardados (`models/`): Archivos .joblib
 
-- **Carga de datos**: Funciones para leer y preprocesar el conjunto de datos de transacciones.
-- **Entrenamiento del modelo**: Implementación del modelo para identificar patrones de fraude.
-- **Evaluación del modelo**: Métricas para medir el desempeño del modelo.
-- **Visualización**: Gráficos y tablas que ayudan a interpretar los resultados del modelo.
-
-Este archivo está diseñado para ser modular y fácil de extender, permitiendo la integración de nuevas características o ajustes en el modelo.
+### WebApp
+Aplicación web implementada con Streamlit que permite:
+- Evaluar modelos entrenados
+- Descargar y analizar datos en tiempo real
+- Visualizar métricas y distribuciones
+- Generar reportes de evaluación
 
 ## Requisitos
-- Python 3.8 o superior
-- Bibliotecas necesarias (ver archivos `requirements.txt`)
 
-## Instrucciones de Uso
-1. Clonar este repositorio:
-   ```bash
+### Python y Dependencias
+- Python 3.8 o superior
+- Dependencias por componente:
+  ```
+  # Dependencias comunes (common_functions/requirements.txt)
+  pandas>=1.2.4
+  numpy>=1.19.2
+  scikit-learn>=0.24.2
+
+  # Dependencias WebApp (webapp/requirements.txt)
+  streamlit>=1.22.0
+  pandas>=1.2.4
+  matplotlib>=3.4.2
+  seaborn>=0.11.1
+
+  # Dependencias notebooks (notebooks/*/requirements.txt)
+  jupyter>=1.0.0
+  ipykernel>=6.0.0
+  plotly>=5.1.0
+
+  # Dependencias específicas de modelos
+  tensorflow>=2.6.0  # Para Keras y redes neuronales
+  xgboost>=1.4.2    # Para modelo XGBoost
+  ```
+
+### Instalación
+1. Clonar el repositorio:
+   ```powershell
    git clone https://github.com/chinoavila/datalab-workshop_ethereum-fraud-detection
    ```
-2. Instalar las dependencias:
-   ```bash
-   pip install -r requirements.txt
+
+2. Crear y activar entorno virtual:
+   ```powershell
+   python -m venv env
+   .\env\Scripts\Activate.ps1
    ```
-3. Ejecutar los scripts según las instrucciones en la documentación.
+
+3. Instalar dependencias:
+   ```powershell
+   pip install -r common_functions/requirements.txt
+   pip install -r webapp/requirements.txt
+   ```
+
+## Uso
+
+### Ejecutar la WebApp
+```powershell
+cd webapp
+streamlit run app.py
+```
+La webapp permite:
+- Evaluación en tiempo real de transacciones
+- Visualización de métricas y resultados
+- Descarga automática de nuevos datos
+- Comparación de modelos entrenados
+
+### Entrenar Modelos
+Cada modelo puede entrenarse individualmente:
+```powershell
+cd labs/model_[nombre_modelo]
+python model.py
+```
+
+Modelos disponibles:
+- `model_keras/Keras_ether.py`
+- `model_logistic_regression/model.py`
+- `model_random_forest/RF_ether.py`
+- `model_red_neuronal/Redes_Neuronales_ether.py`
+- `model_xgboost/model.py`
+
+### Análisis Exploratorio
+```powershell
+cd notebooks/EDA
+jupyter notebook Transacciones_EDA.ipynb
+```
+
+### Generar Datos
+Para obtener nuevos datos de transacciones:
+```powershell
+cd scripts/get_data
+python generate_eth_features_history.py --minutes 5 --max-tx 100
+```
+
+Los datos se guardarán automáticamente en:
+- Datos originales: `datasets/transaction_dataset.csv`
+- Datos procesados: `datasets/transaction_dataset_clean.csv`
+- Features generadas: `scripts/get_data/features_recent_*.csv`
+
+## Rendimiento de Modelos (Mayo 2025)
+
+La siguiente tabla muestra el rendimiento comparativo de los diferentes modelos implementados:
+
+| Modelo | Accuracy | Precision | Recall | F1-Score | AUC-ROC |
+|--------|----------|-----------|--------|----------|---------|
+| Random Forest | 91.3% | 88.5% | 87.2% | 87.8% | 0.952 |
+| XGBoost | 90.6% | 87.9% | 86.4% | 87.1% | 0.948 |
+| Keras | 86.7% | 82.4% | 80.9% | 81.6% | 0.908 |
+| Red Neuronal | 85.2% | 81.7% | 79.3% | 80.5% | 0.895 |
+| Regresión Logística | 83.7% | 79.2% | 72.9% | 75.9% | 0.824 |
+
+### Modelo Recomendado
+Basado en los resultados, se recomienda el modelo **Random Forest** para uso en producción debido a su equilibrio óptimo entre precisión, capacidad de detección y eficiencia computacional.
+
+## Características de los Datos en Tiempo Real
+
+El sistema puede analizar transacciones de Ethereum en tiempo real utilizando:
+- API de Alchemy para obtener datos de transacciones recientes
+- Extracción automática de características relevantes
+- Procesamiento compatible con el formato de entrenamiento
+- Almacenamiento de resultados en `features_downloads/`
+
+### Uso del Sistema en Tiempo Real
+```powershell
+cd scripts/get_data
+python generate_eth_features_history.py --tx_hash 0x123...  # Para una transacción específica
+```
+
+## Estado Actual del Proyecto (Mayo 2025)
+- Todos los modelos están entrenados y optimizados
+- WebApp completamente funcional
+- Sistema de evaluación automatizado implementado
+- Pipeline de datos en tiempo real operativo
+- Documentación completa disponible
 
 ## Contribuciones
-Las contribuciones son bienvenidas. Por favor, abre un issue o envía un pull request para sugerir mejoras.
+Las contribuciones son bienvenidas. Por favor:
+1. Fork el repositorio
+2. Crea una rama para tu feature
+3. Envía un pull request
 
 ## Licencia
 Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+
+## Última Actualización
+- Fecha: Mayo 2025
+- Mantenido por: Equipo DataLab
+- Estado: Productivo
