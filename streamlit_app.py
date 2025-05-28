@@ -36,8 +36,11 @@ from scripts.get_data.generate_eth_features_history import (
 def cargar_dataset_mas_reciente():
     """Carga el dataset más reciente o genera uno nuevo si no existe"""
     features_dir = os.path.join(project_root, "features_downloads")
-    initial_file = os.path.join(features_dir, "features_recent_*_*.csv")
-    archivos = glob.glob(initial_file)
+    # Buscar tanto archivos recientes como de transacciones específicas
+    archivos_recentes = glob.glob(os.path.join(features_dir, "features_recent_*_*.csv"))
+    archivos_tx = glob.glob(os.path.join(features_dir, "features_tx_*.csv"))
+    archivos = archivos_recentes + archivos_tx
+    
     if not archivos:
         try:
             st.warning("No se encontraron datos recientes. Generando nuevo dataset...")
@@ -70,8 +73,9 @@ def cargar_dataset_mas_reciente():
         except Exception as e:
             st.error(f'No se pudo ejecutar el script de generación de nuevos datos: {e}')
             return None
+    
     # Buscar el archivo generado
-    archivos = glob.glob(initial_file)
+    archivos = glob.glob(os.path.join(features_dir, "features_*.csv"))
     if not archivos:
         st.error("No se generó el archivo de features")
         return None
