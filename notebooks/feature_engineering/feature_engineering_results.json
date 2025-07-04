@@ -1,0 +1,106 @@
+{
+  "baseline": {
+    "original_features": {
+      "accuracy": 0.8207211782630777,
+      "n_features": 32
+    }
+  },
+  "tree_based": {
+    "xgb_leaves": {
+      "accuracy": 0.9827323514474352,
+      "n_features": 100
+    },
+    "rf_leaves": {
+      "accuracy": 0.9680040629761301,
+      "n_features": 100
+    },
+    "combined_leaves": {
+      "accuracy": 0.9827323514474352,
+      "n_features": 200
+    },
+    "leaf_distances": {
+      "accuracy": 0.7775520568816658,
+      "n_features": 1
+    }
+  },
+  "dimensionality_reduction": {
+    "pca_only": {
+      "accuracy": 0.8156424581005587,
+      "n_features": 32
+    },
+    "svd_only": {
+      "accuracy": 0.8186896901980701,
+      "n_features": 31
+    },
+    "ica_only": {
+      "accuracy": 0.781615033011681,
+      "n_features": 20
+    },
+    "original_plus_pca": {
+      "accuracy": 0.8491620111731844,
+      "n_features": 64
+    }
+  },
+  "feature_interactions": {
+    "polynomial_features": {
+      "accuracy": 0.888268156424581,
+      "n_features": 528
+    },
+    "manual_interactions": {
+      "accuracy": 0.7917724733367192,
+      "n_features": 45
+    },
+    "feature_ratios": {
+      "accuracy": 0.781615033011681,
+      "n_features": 10
+    }
+  },
+  "clustering": {
+    "kmeans_labels": {
+      "accuracy": 0.8603351955307262,
+      "n_features": 1
+    },
+    "kmeans_distances": {
+      "accuracy": 0.7831386490604367,
+      "n_features": 10
+    },
+    "class_distances": {
+      "accuracy": 0.7831386490604367,
+      "n_features": 2
+    }
+  },
+  "anomaly_detection": {
+    "isolation_forest": {
+      "accuracy": 0.7760284408329101,
+      "n_features": 1
+    },
+    "mahalanobis_distance": {
+      "accuracy": 0.7831386490604367,
+      "n_features": 1
+    },
+    "local_statistics": {
+      "accuracy": 0
+    },
+    "aggregated_stats": {
+      "accuracy": 0
+    }
+  },
+  "feature_selection": {
+    "mutual_info_selection": {
+      "accuracy": 0.7800914169629254,
+      "n_features": 20
+    },
+    "f_score_selection": {
+      "accuracy": 0.8115794819705434,
+      "n_features": 20
+    },
+    "rfe_selection": {
+      "accuracy": 0.7831386490604367,
+      "n_features": 15
+    },
+    "xgb_selection": {
+      "accuracy": 0.7831386490604367,
+      "n_features": 5
+    }
+  }
+}
